@@ -171,7 +171,10 @@ All metrics include the common tag `application=${spring.application.name}`. `/a
 
 Production profile note:
 
+- use `staging` for deployed pre-prod runtime defaults
 - use `prod` for production runtime defaults
+- `staging` automatically activates `container`, so structured JSON console logging remains enabled
+- `staging` enables strict startup validation and trusted forwarded-header handling for realistic pre-prod testing
 - `prod` automatically activates `container`, so structured JSON console logging remains enabled
 - `prod` also enables strict startup validation for required Spotify, crypto, redirect, and upstream JWT settings
 - `prod` defaults `server.forward-headers-strategy` to `framework` so trusted proxy headers are honored

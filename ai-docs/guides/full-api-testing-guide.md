@@ -8,7 +8,7 @@ This guide covers the full current HTTP surface of the app:
 
 - Swagger UI
 - OpenAPI JSON
-- actuator health/info
+- actuator health/info/metrics
 - Spotify connect and callback flow
 - linked-account read
 - unlink
@@ -28,6 +28,8 @@ It is written for the app's current state, not a future roadmap state.
 
 - `GET /actuator/health`
 - `GET /actuator/info`
+- `GET /actuator/metrics`
+- `GET /actuator/metrics/{meterName}`
 
 ### Spotify auth / connection lifecycle
 
@@ -184,14 +186,15 @@ Recommended full sequence:
 
 1. docs endpoints
 2. actuator endpoints
-3. pre-link connection reads
-4. Spotify connect flow
-5. post-link connection read
-6. polling/data verification
-7. top-song
-8. our-song
-9. unlink
-10. relink and gap preservation checks
+3. actuator metrics
+4. pre-link connection reads
+5. Spotify connect flow
+6. post-link connection read
+7. polling/data verification
+8. top-song
+9. our-song
+10. unlink
+11. relink and gap preservation checks
 
 ## Endpoint-By-Endpoint Guide
 
@@ -279,7 +282,42 @@ What to verify:
 - `auth.upstreamJwtEnabled`
 - `polling.recentlyPlayedInterval`
 
-## 5. Linked Account Read Before Connect
+## 5. Actuator Metrics
+
+Request:
+
+```text
+GET http://127.0.0.1:8080/actuator/metrics
+```
+
+Expected:
+
+- `200`
+- a list of available meter names
+
+What to verify:
+
+- `names` includes `sotd.spotify.callback.outcomes`
+- `names` includes `sotd.spotify.poll.account.outcomes`
+- `names` includes `sotd.spotify.accounts`
+
+Example specific metric:
+
+```text
+GET http://127.0.0.1:8080/actuator/metrics/sotd.spotify.poll.account.outcomes
+```
+
+Expected:
+
+- `200`
+- meter measurements and available tags
+
+Operational note:
+
+- treat `/actuator/metrics` as an internal ops endpoint
+- do not expose it on the public internet-facing edge
+
+## 6. Linked Account Read Before Connect
 
 ### Auth disabled
 
@@ -299,7 +337,7 @@ Expected before linking:
 
 - `404`
 
-## 6. Start Spotify Connect Flow
+## 7. Start Spotify Connect Flow
 
 This is a browser test, not a pure API-client test.
 
@@ -339,7 +377,7 @@ Expected:
 
 - `400`
 
-## 7. Linked Account Read After Connect
+## 8. Linked Account Read After Connect
 
 Request:
 
@@ -365,7 +403,7 @@ Expected:
   - `timezone`
   - `accessTokenExpiresAt`
 
-## 8. Top Song
+## 9. Top Song
 
 Request:
 
@@ -418,7 +456,7 @@ Expected when:
 
 - no Spotify account is linked for that `appUserId`
 
-## 9. Our Song
+## 10. Our Song
 
 Request shape:
 
@@ -466,7 +504,7 @@ Expected:
 
 - `400`
 
-## 10. Unlink
+## 11. Unlink
 
 Request:
 
@@ -498,7 +536,7 @@ Expected:
 
 - `204` both times
 
-## 11. Relink After Unlink
+## 12. Relink After Unlink
 
 Use the browser connect flow again for the same `appUserId`.
 

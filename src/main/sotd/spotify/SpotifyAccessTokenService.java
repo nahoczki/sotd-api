@@ -77,7 +77,12 @@ public class SpotifyAccessTokenService {
                 encryptedRefreshToken = tokenEncryptionService.encrypt(response.refreshToken());
             }
 
-            spotifyAccountRepository.updateTokenState(account.id(), encryptedRefreshToken, expiresAt, now);
+            boolean updated = spotifyAccountRepository.updateTokenState(account.id(), encryptedRefreshToken, expiresAt, now);
+            if (!updated) {
+                tokenCache.remove(account.id());
+                log.debug("Skipping Spotify token cache update because account {} is no longer active.", account.spotifyUserId());
+                throw new SpotifyReauthRequiredException("Spotify account is no longer active.", null);
+            }
             tokenCache.put(account.id(), new CachedAccessToken(response.accessToken(), expiresAt));
             log.debug("Refreshed Spotify access token for account {}. Expires at {}.", account.spotifyUserId(), expiresAt);
             return response.accessToken();

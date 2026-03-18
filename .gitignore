@@ -47,5 +47,5 @@ bin/
 Thumbs.db
 
 # Keep source, reports, and wrapper files tracked
-!ai-reports/
-!ai-reports/**/*.md
+!ai-docs/
+!ai-docs/**/*.md

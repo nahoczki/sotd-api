@@ -3,6 +3,7 @@ package sotd.spotify;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -44,6 +45,7 @@ class SpotifyAuthorizationServiceTest {
                 mock(SpotifyApiClient.class),
                 encryptionService(),
                 mock(SpotifyAccountRepository.class),
+                mock(SpotifyAccessTokenService.class),
                 clock
         );
 
@@ -84,6 +86,7 @@ class SpotifyAuthorizationServiceTest {
                 apiClient,
                 encryptionService(),
                 repository,
+                mock(SpotifyAccessTokenService.class),
                 clock
         );
 
@@ -103,7 +106,8 @@ class SpotifyAuthorizationServiceTest {
                 anyString(),
                 any(Instant.class),
                 any(Instant.class),
-                anyString()
+                anyString(),
+                anyLong()
         );
     }
 
@@ -121,12 +125,39 @@ class SpotifyAuthorizationServiceTest {
                 mock(SpotifyApiClient.class),
                 encryptionService(),
                 mock(SpotifyAccountRepository.class),
+                mock(SpotifyAccessTokenService.class),
                 clock
         );
 
         assertThatThrownBy(() -> service.handleCallback("code-123", "bad-state", null))
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("state is invalid or expired");
+    }
+
+    @Test
+    void disconnectCurrentConnectionSoftDisconnectsLinkedAccountAndInvalidatesCachedToken() {
+        Clock clock = Clock.fixed(Instant.parse("2026-03-17T20:00:00Z"), ZoneOffset.UTC);
+        SpotifyAccountRepository repository = mock(SpotifyAccountRepository.class);
+        SpotifyAccessTokenService accessTokenService = mock(SpotifyAccessTokenService.class);
+        UUID appUserId = UUID.fromString("11111111-1111-1111-1111-111111111111");
+        when(repository.disconnectByAppUserId(appUserId))
+                .thenReturn(Optional.of(new SpotifyAccountRepository.DisconnectedSpotifyAccount(7L, "spotify-user")));
+
+        SpotifyAuthorizationService service = new SpotifyAuthorizationService(
+                configuredProperties(),
+                mock(SpotifyAuthStateStore.class),
+                mock(SpotifyAccountsClient.class),
+                mock(SpotifyApiClient.class),
+                encryptionService(),
+                repository,
+                accessTokenService,
+                clock
+        );
+
+        service.disconnectCurrentConnection(appUserId);
+
+        verify(repository).disconnectByAppUserId(appUserId);
+        verify(accessTokenService).invalidate(7L);
     }
 
     private static SpotifyProperties configuredProperties() {

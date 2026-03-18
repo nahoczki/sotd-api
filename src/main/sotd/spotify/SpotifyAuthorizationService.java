@@ -20,7 +20,9 @@ import sotd.spotify.client.SpotifyAccountsClient;
 import sotd.spotify.client.SpotifyApiClient;
 import sotd.spotify.client.SpotifyCurrentUserProfile;
 import sotd.spotify.client.SpotifyTokenResponse;
+import sotd.spotify.persistence.SpotifyAccountRepository.DisconnectedSpotifyAccount;
 import sotd.spotify.persistence.SpotifyAccountRepository;
+import sotd.spotify.SpotifyAccessTokenService;
 
 @Service
 /**
@@ -40,6 +42,7 @@ public class SpotifyAuthorizationService {
     private final SpotifyApiClient spotifyApiClient;
     private final TokenEncryptionService tokenEncryptionService;
     private final SpotifyAccountRepository spotifyAccountRepository;
+    private final SpotifyAccessTokenService spotifyAccessTokenService;
     private final Clock clock;
 
     public SpotifyAuthorizationService(
@@ -49,6 +52,7 @@ public class SpotifyAuthorizationService {
             SpotifyApiClient spotifyApiClient,
             TokenEncryptionService tokenEncryptionService,
             SpotifyAccountRepository spotifyAccountRepository,
+            SpotifyAccessTokenService spotifyAccessTokenService,
             Clock clock
     ) {
         this.spotifyProperties = spotifyProperties;
@@ -57,6 +61,7 @@ public class SpotifyAuthorizationService {
         this.spotifyApiClient = spotifyApiClient;
         this.tokenEncryptionService = tokenEncryptionService;
         this.spotifyAccountRepository = spotifyAccountRepository;
+        this.spotifyAccessTokenService = spotifyAccessTokenService;
         this.clock = clock;
     }
 
@@ -120,7 +125,8 @@ public class SpotifyAuthorizationService {
                 tokenResponse.scope(),
                 tokenExpiresAt,
                 clock.instant(),
-                ZoneId.systemDefault().getId()
+                ZoneId.systemDefault().getId(),
+                clock.instant().toEpochMilli()
         );
         log.info(
                 "Linked Spotify account {} ({}) to app user {} with token expiry at {}.",
@@ -142,6 +148,14 @@ public class SpotifyAuthorizationService {
 
     public Optional<SpotifyLinkedAccountView> getCurrentConnection(UUID appUserId) {
         return spotifyAccountRepository.findByAppUserId(appUserId);
+    }
+
+    public void disconnectCurrentConnection(UUID appUserId) {
+        Optional<DisconnectedSpotifyAccount> disconnectedAccount = spotifyAccountRepository.disconnectByAppUserId(appUserId);
+        disconnectedAccount.ifPresent(account -> {
+            spotifyAccessTokenService.invalidate(account.accountId());
+            log.info("Disconnected Spotify account {} from app user {}.", account.spotifyUserId(), appUserId);
+        });
     }
 
     private void requireConfiguredCredentials() {

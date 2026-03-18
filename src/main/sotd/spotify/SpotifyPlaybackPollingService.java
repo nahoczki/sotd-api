@@ -59,8 +59,15 @@ public class SpotifyPlaybackPollingService {
     }
 
     void pollAccount(SpotifyPollingAccount account) {
+        if (!spotifyAccountRepository.isActiveForPolling(account.id())) {
+            return;
+        }
+
         try {
             SpotifyRecentlyPlayedResponse response = fetchRecentlyPlayed(account);
+            if (!spotifyAccountRepository.isActiveForPolling(account.id())) {
+                return;
+            }
             SpotifyRecentlyPlayedIngestionService.RecentlyPlayedIngestionResult result = ingestionService.ingest(account, response);
 
             for (LocalDate affectedDay : result.affectedDays()) {

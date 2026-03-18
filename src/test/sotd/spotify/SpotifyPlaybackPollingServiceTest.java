@@ -1,6 +1,8 @@
 package sotd.spotify;
 
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -29,6 +31,7 @@ class SpotifyPlaybackPollingServiceTest {
         SpotifyPollingAccount account = account();
         SpotifyAccountRepository repository = mock(SpotifyAccountRepository.class);
         when(repository.findActiveAccountsForPolling()).thenReturn(List.of(account));
+        when(repository.isActiveForPolling(account.id())).thenReturn(true);
 
         SpotifyAccessTokenService accessTokenService = mock(SpotifyAccessTokenService.class);
         when(accessTokenService.getAccessToken(account)).thenReturn("access-token");
@@ -66,6 +69,7 @@ class SpotifyPlaybackPollingServiceTest {
     void pollAccountRetriesOnceWhenSpotifyRejectsCachedAccessToken() {
         SpotifyPollingAccount account = account();
         SpotifyAccountRepository repository = mock(SpotifyAccountRepository.class);
+        when(repository.isActiveForPolling(account.id())).thenReturn(true);
         SpotifyAccessTokenService accessTokenService = mock(SpotifyAccessTokenService.class);
         when(accessTokenService.getAccessToken(account)).thenReturn("stale-token", "fresh-token");
 
@@ -105,6 +109,36 @@ class SpotifyPlaybackPollingServiceTest {
         verify(apiClient).getRecentlyPlayed("fresh-token", 100L, 50);
         verify(repository).updatePollingCheckpoint(7L, Instant.parse("2026-03-18T00:00:00Z"), 100L);
         verify(accessTokenService, times(2)).getAccessToken(eq(account));
+    }
+
+    @Test
+    void pollAccountSkipsWhenAccountWasDisconnectedAfterFetch() {
+        SpotifyPollingAccount account = account();
+        SpotifyAccountRepository repository = mock(SpotifyAccountRepository.class);
+        when(repository.isActiveForPolling(account.id())).thenReturn(true, false);
+
+        SpotifyAccessTokenService accessTokenService = mock(SpotifyAccessTokenService.class);
+        when(accessTokenService.getAccessToken(account)).thenReturn("access-token");
+
+        SpotifyRecentlyPlayedResponse response = new SpotifyRecentlyPlayedResponse(List.of(), null);
+        SpotifyApiClient apiClient = mock(SpotifyApiClient.class);
+        when(apiClient.getRecentlyPlayed("access-token", 100L, 50)).thenReturn(response);
+
+        SpotifyRecentlyPlayedIngestionService ingestionService = mock(SpotifyRecentlyPlayedIngestionService.class);
+
+        SpotifyPlaybackPollingService service = new SpotifyPlaybackPollingService(
+                repository,
+                accessTokenService,
+                apiClient,
+                ingestionService,
+                mock(SongRollupRepository.class),
+                Clock.fixed(Instant.parse("2026-03-18T00:00:00Z"), ZoneOffset.UTC)
+        );
+
+        service.pollAccount(account);
+
+        verify(ingestionService, times(0)).ingest(account, response);
+        verify(repository, times(0)).updatePollingCheckpoint(anyLong(), any(Instant.class), any());
     }
 
     private static SpotifyPollingAccount account() {

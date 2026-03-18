@@ -12,6 +12,7 @@ import java.util.UUID;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -91,5 +92,24 @@ public class SpotifyAuthorizationController {
         return spotifyAuthorizationService.getCurrentConnection(appUserId)
                 .map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    @DeleteMapping("/api/users/{appUserId}/spotify/connection")
+    @Operation(
+            summary = "Unlink Spotify account",
+            description = "Soft-disconnects the Spotify account currently linked to the requested application user.",
+            security = @SecurityRequirement(name = OpenApiConfig.UPSTREAM_HEADER_AUTH_SCHEME)
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Spotify account disconnected or already absent."),
+            @ApiResponse(responseCode = "401", description = "Missing or invalid upstream auth token."),
+            @ApiResponse(responseCode = "403", description = "Upstream token does not match the requested UUID.")
+    })
+    public ResponseEntity<Void> disconnect(
+            @Parameter(description = "Stable upstream application user UUID.", required = true)
+            @PathVariable UUID appUserId
+    ) {
+        spotifyAuthorizationService.disconnectCurrentConnection(appUserId);
+        return ResponseEntity.noContent().build();
     }
 }

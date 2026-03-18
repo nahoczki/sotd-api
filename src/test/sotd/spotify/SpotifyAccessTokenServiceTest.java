@@ -37,6 +37,7 @@ class SpotifyAccessTokenServiceTest {
         when(tokenEncryptionService.decrypt(any(byte[].class))).thenReturn("refresh-token");
 
         SpotifyAccountRepository repository = mock(SpotifyAccountRepository.class);
+        when(repository.updateTokenState(anyLong(), any(byte[].class), any(Instant.class), any(Instant.class))).thenReturn(true);
         SpotifyAccessTokenService service = new SpotifyAccessTokenService(
                 properties,
                 accountsClient,
@@ -57,6 +58,33 @@ class SpotifyAccessTokenServiceTest {
                 eq(Instant.parse("2026-03-18T01:00:00Z")),
                 eq(Instant.parse("2026-03-18T00:00:00Z"))
         );
+    }
+
+    @Test
+    void getAccessTokenDoesNotCacheTokenWhenAccountWasDisconnectedDuringRefresh() {
+        Clock clock = Clock.fixed(Instant.parse("2026-03-18T00:00:00Z"), ZoneOffset.UTC);
+        SpotifyProperties properties = configuredProperties();
+        SpotifyAccountsClient accountsClient = mock(SpotifyAccountsClient.class);
+        when(accountsClient.refreshAccessToken("client-id", "client-secret", "refresh-token"))
+                .thenReturn(new SpotifyTokenResponse("access-token", "Bearer", "scope", 3600, null));
+
+        TokenEncryptionService tokenEncryptionService = mock(TokenEncryptionService.class);
+        when(tokenEncryptionService.decrypt(any(byte[].class))).thenReturn("refresh-token");
+
+        SpotifyAccountRepository repository = mock(SpotifyAccountRepository.class);
+        when(repository.updateTokenState(anyLong(), any(byte[].class), any(Instant.class), any(Instant.class))).thenReturn(false);
+
+        SpotifyAccessTokenService service = new SpotifyAccessTokenService(
+                properties,
+                accountsClient,
+                tokenEncryptionService,
+                repository,
+                clock
+        );
+
+        assertThatThrownBy(() -> service.getAccessToken(account()))
+                .isInstanceOf(SpotifyReauthRequiredException.class)
+                .hasMessageContaining("no longer active");
     }
 
     @Test

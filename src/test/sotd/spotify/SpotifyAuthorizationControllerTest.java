@@ -61,4 +61,16 @@ class SpotifyAuthorizationControllerTest {
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
+
+    @Test
+    void disconnectReturnsNoContentAndDelegatesToService() {
+        SpotifyAuthorizationService service = mock(SpotifyAuthorizationService.class);
+        UUID appUserId = UUID.fromString("11111111-1111-1111-1111-111111111111");
+        SpotifyAuthorizationController controller = new SpotifyAuthorizationController(service);
+
+        ResponseEntity<Void> response = controller.disconnect(appUserId);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+        verify(service).disconnectCurrentConnection(appUserId);
+    }
 }

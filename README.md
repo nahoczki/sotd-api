@@ -51,7 +51,6 @@ This project intentionally uses a flatter Java layout than the default IntelliJ/
 - `src/main/sotd` - application code
 - `src/main/resources` - app config and Flyway migrations
 - `src/test/sotd` - tests
-- `ai-reports` - architecture, stack, and setup reports
 
 ## Local Development
 
@@ -90,6 +89,18 @@ On startup, Flyway will apply the initial schema migration automatically.
 .\gradlew.bat fullSuite
 ```
 
+### Build container image
+
+```powershell
+docker build -t sotd-api:local .
+```
+
+Run it with environment variables supplied by your platform or an env file:
+
+```powershell
+docker run --rm -p 8080:8080 --env-file .env sotd-api:local
+```
+
 ### Current API shape
 
 ```powershell
@@ -101,6 +112,7 @@ Key routes:
 - `GET /api/users/{appUserId}/spotify/connect`
 - `GET /api/spotify/callback`
 - `GET /api/users/{appUserId}/spotify/connection`
+- `DELETE /api/users/{appUserId}/spotify/connection`
 - `GET /api/users/{appUserId}/song-of-the-day`
 - `GET /api/users/{appUserId}/our-song?otherUserId={otherUserId}&period=DAY|WEEK|MONTH`
 
@@ -113,6 +125,16 @@ User-scoped routes are protected by a signed upstream auth token. The upstream b
 - mint a short-lived JWT for a specific `app_user_id`
 - send it in the `Authorization: Bearer {jwt}` header for server-to-server reads
 - append it as the `upstreamAuth` query parameter for browser redirects to `/spotify/connect`
+
+## Deployment Note
+
+Running this service as an internal-only Kubernetes service is the right default for the read endpoints.
+
+Important OAuth caveat:
+
+- the Spotify connect flow and `/api/spotify/callback` still need a browser-visible route that Spotify can redirect to
+- that can be a direct ingress to this service or a path proxied through your main app/backend
+- the service does not need to be generally public as a separate internet-facing API if your upstream app is handling the external edge
 
 ## Database
 
@@ -142,6 +164,7 @@ Local connect flow:
 - open `http://127.0.0.1:8080/api/users/{appUserId}/spotify/connect?upstreamAuth={token}` in a browser
 - complete Spotify auth
 - inspect the linked account with `Authorization: Bearer {token}` at `http://127.0.0.1:8080/api/users/{appUserId}/spotify/connection`
+- unlink the Spotify account with `Authorization: Bearer {token}` at `DELETE http://127.0.0.1:8080/api/users/{appUserId}/spotify/connection`
 - read the winner with `Authorization: Bearer {token}` at `http://127.0.0.1:8080/api/users/{appUserId}/song-of-the-day`
 - read the shared song with `Authorization: Bearer {token}` at `http://127.0.0.1:8080/api/users/{appUserId}/our-song?otherUserId={otherUserId}&period=DAY`
 

@@ -8,6 +8,9 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.server.ResponseStatusException;
 
 @Component
+/**
+ * Thin client for Spotify Web API calls executed on behalf of the linked user.
+ */
 public class SpotifyApiClient {
 
     private final RestClient spotifyApiRestClient;
@@ -16,6 +19,9 @@ public class SpotifyApiClient {
         this.spotifyApiRestClient = spotifyApiRestClient;
     }
 
+    /**
+     * Fetches the current Spotify user profile for the supplied bearer token.
+     */
     public SpotifyCurrentUserProfile getCurrentUserProfile(String accessToken) {
         SpotifyCurrentUserProfile response = spotifyApiRestClient.get()
                 .uri("/me")

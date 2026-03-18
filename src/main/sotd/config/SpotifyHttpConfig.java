@@ -8,6 +8,9 @@ import org.springframework.web.client.RestClient;
 import sotd.spotify.SpotifyProperties;
 
 @Configuration
+/**
+ * Creates dedicated {@link RestClient} instances for Spotify Web API and Spotify Accounts API calls.
+ */
 public class SpotifyHttpConfig {
 
     @Bean

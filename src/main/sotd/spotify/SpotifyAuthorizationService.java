@@ -7,6 +7,8 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 import java.util.StringJoiner;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -20,7 +22,15 @@ import sotd.spotify.client.SpotifyTokenResponse;
 import sotd.spotify.persistence.SpotifyAccountRepository;
 
 @Service
+/**
+ * Coordinates the Spotify OAuth flow for the current private single-user app.
+ *
+ * <p>This service currently handles initial account linking and account lookup. Refresh-token reuse for
+ * background polling is still a future step.
+ */
 public class SpotifyAuthorizationService {
+
+    private static final Logger log = LoggerFactory.getLogger(SpotifyAuthorizationService.class);
 
     private final SpotifyProperties spotifyProperties;
     private final SpotifyAuthStateStore authStateStore;
@@ -52,7 +62,9 @@ public class SpotifyAuthorizationService {
         requireConfiguredCredentials();
 
         Instant now = clock.instant();
-        String state = authStateStore.issueState(now.plus(spotifyProperties.getAuthStateTtl()));
+        Instant expiresAt = now.plus(spotifyProperties.getAuthStateTtl());
+        String state = authStateStore.issueState(expiresAt);
+        log.debug("Issued Spotify authorization state expiring at {}", expiresAt);
 
         return UriComponentsBuilder.fromUri(spotifyProperties.getAccountsBaseUrl())
                 .path("/authorize")
@@ -71,12 +83,15 @@ public class SpotifyAuthorizationService {
         requireConfiguredCredentials();
 
         if (StringUtils.hasText(error)) {
+            log.warn("Spotify authorization callback returned an error: {}", error);
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Spotify authorization failed: " + error);
         }
         if (!StringUtils.hasText(code)) {
+            log.warn("Rejected Spotify callback because the authorization code was missing.");
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Spotify callback is missing the authorization code.");
         }
         if (!authStateStore.consume(state)) {
+            log.warn("Rejected Spotify callback because the state token was invalid or expired.");
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Spotify callback state is invalid or expired.");
         }
 
@@ -88,6 +103,7 @@ public class SpotifyAuthorizationService {
         );
 
         if (!StringUtils.hasText(tokenResponse.refreshToken())) {
+            log.warn("Spotify token exchange completed without returning a refresh token.");
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Spotify did not return a refresh token.");
         }
 
@@ -101,6 +117,12 @@ public class SpotifyAuthorizationService {
                 tokenExpiresAt,
                 clock.instant(),
                 ZoneId.systemDefault().getId()
+        );
+        log.info(
+                "Linked Spotify account {} ({}) with token expiry at {}.",
+                userProfile.id(),
+                userProfile.displayName(),
+                tokenExpiresAt
         );
 
         return new SpotifyConnectionResponse(
@@ -119,6 +141,7 @@ public class SpotifyAuthorizationService {
     private void requireConfiguredCredentials() {
         if (!StringUtils.hasText(spotifyProperties.getClientId())
                 || !StringUtils.hasText(spotifyProperties.getClientSecret())) {
+            log.error("Spotify client credentials are not configured.");
             throw new ResponseStatusException(
                     HttpStatus.INTERNAL_SERVER_ERROR,
                     "Spotify client credentials are not configured. Add SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET to .env."

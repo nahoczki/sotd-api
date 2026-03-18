@@ -9,6 +9,12 @@ import sotd.spotify.SpotifyLinkedAccountView;
 import sotd.spotify.client.SpotifyCurrentUserProfile;
 
 @Repository
+/**
+ * JDBC persistence for linked Spotify accounts.
+ *
+ * <p>The current repository shape assumes a private single-user app and exposes a "most recent account"
+ * lookup for the `/api/spotify/connection` endpoint.
+ */
 public class SpotifyAccountRepository {
 
     private final JdbcClient jdbcClient;
@@ -17,6 +23,9 @@ public class SpotifyAccountRepository {
         this.jdbcClient = jdbcClient;
     }
 
+    /**
+     * Upserts the linked Spotify account after a successful OAuth callback.
+     */
     public void saveOrUpdate(
             SpotifyCurrentUserProfile userProfile,
             byte[] encryptedRefreshToken,
@@ -59,6 +68,9 @@ public class SpotifyAccountRepository {
                 .update();
     }
 
+    /**
+     * Returns the most recently updated linked account row for the current single-user POC.
+     */
     public Optional<SpotifyLinkedAccountView> findMostRecent() {
         return jdbcClient.sql("""
                 select

@@ -16,6 +16,17 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 
 @Service
+/**
+ * Encrypts and decrypts long-lived Spotify refresh tokens before persistence.
+ *
+ * <p>The stored payload format is:
+ *
+ * <ul>
+ *   <li>1 byte version marker
+ *   <li>12 byte random GCM IV
+ *   <li>ciphertext with the GCM authentication tag appended
+ * </ul>
+ */
 public class TokenEncryptionService {
 
     private static final byte CURRENT_VERSION = 1;
@@ -35,6 +46,9 @@ public class TokenEncryptionService {
         this.secureRandom = secureRandom;
     }
 
+    /**
+     * Encrypts a plaintext refresh token using AES-256-GCM.
+     */
     public byte[] encrypt(String plaintext) {
         if (!StringUtils.hasText(plaintext)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Refresh token is missing.");
@@ -59,6 +73,9 @@ public class TokenEncryptionService {
         }
     }
 
+    /**
+     * Decrypts a previously stored refresh token payload.
+     */
     public String decrypt(byte[] ciphertext) {
         if (ciphertext == null || ciphertext.length <= 1 + GCM_IV_LENGTH) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Encrypted token payload is invalid.");

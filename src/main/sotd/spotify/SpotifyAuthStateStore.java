@@ -10,6 +10,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 @Component
+/**
+ * In-memory storage for OAuth state values during the Spotify connect flow.
+ *
+ * <p>This is intentionally simple for the current single-instance POC. It must move to a shared store
+ * before multi-instance deployment.
+ */
 public class SpotifyAuthStateStore {
 
     private static final int STATE_BYTES = 24;
@@ -28,6 +34,9 @@ public class SpotifyAuthStateStore {
         this.randomStateGenerator = randomStateGenerator;
     }
 
+    /**
+     * Issues a one-time state token that expires at the supplied timestamp.
+     */
     public String issueState(Instant expiresAt) {
         evictExpired(clock.instant());
         String state = Base64.getUrlEncoder()
@@ -37,6 +46,9 @@ public class SpotifyAuthStateStore {
         return state;
     }
 
+    /**
+     * Consumes a state token once and returns whether it was valid and unexpired.
+     */
     public boolean consume(String state) {
         if (state == null) {
             return false;

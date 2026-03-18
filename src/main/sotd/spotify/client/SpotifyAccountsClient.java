@@ -12,6 +12,9 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.server.ResponseStatusException;
 
 @Component
+/**
+ * Thin client for Spotify Accounts API operations such as token exchange.
+ */
 public class SpotifyAccountsClient {
 
     private final RestClient spotifyAccountsRestClient;
@@ -20,6 +23,9 @@ public class SpotifyAccountsClient {
         this.spotifyAccountsRestClient = spotifyAccountsRestClient;
     }
 
+    /**
+     * Exchanges a Spotify authorization code for an access token and refresh token.
+     */
     public SpotifyTokenResponse exchangeAuthorizationCode(
             String clientId,
             String clientSecret,

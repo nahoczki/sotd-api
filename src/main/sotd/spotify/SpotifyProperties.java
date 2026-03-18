@@ -7,6 +7,12 @@ import java.util.List;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "spotify")
+/**
+ * External configuration for Spotify API integration.
+ *
+ * <p>This covers the auth endpoints, credentials, redirect URI, requested scopes, and planned polling
+ * intervals for playback ingestion.
+ */
 public class SpotifyProperties {
 
     private URI baseUrl = URI.create("https://api.spotify.com/v1");
@@ -87,6 +93,9 @@ public class SpotifyProperties {
         return polling;
     }
 
+    /**
+     * Polling intervals reserved for the future playback ingestion workers.
+     */
     public static class Polling {
 
         private Duration recentlyPlayedInterval = Duration.ofMinutes(2);

@@ -89,6 +89,18 @@ On startup, Flyway will apply the initial schema migration automatically.
 .\gradlew.bat fullSuite
 ```
 
+### Build container image
+
+```powershell
+docker build -t sotd-api:local .
+```
+
+Run it with environment variables supplied by your platform or an env file:
+
+```powershell
+docker run --rm -p 8080:8080 --env-file .env sotd-api:local
+```
+
 ### Current API shape
 
 ```powershell
@@ -113,6 +125,16 @@ User-scoped routes are protected by a signed upstream auth token. The upstream b
 - mint a short-lived JWT for a specific `app_user_id`
 - send it in the `Authorization: Bearer {jwt}` header for server-to-server reads
 - append it as the `upstreamAuth` query parameter for browser redirects to `/spotify/connect`
+
+## Deployment Note
+
+Running this service as an internal-only Kubernetes service is the right default for the read endpoints.
+
+Important OAuth caveat:
+
+- the Spotify connect flow and `/api/spotify/callback` still need a browser-visible route that Spotify can redirect to
+- that can be a direct ingress to this service or a path proxied through your main app/backend
+- the service does not need to be generally public as a separate internet-facing API if your upstream app is handling the external edge
 
 ## Database
 

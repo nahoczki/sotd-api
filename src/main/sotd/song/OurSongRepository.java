@@ -13,7 +13,7 @@ import org.springframework.stereotype.Repository;
 public class OurSongRepository {
 
     static final String TIE_BREAK_RULE =
-            "COMBINED_PLAY_COUNT_THEN_LEAST_SHARED_COUNT_THEN_DURATION_THEN_LAST_PLAYED_THEN_TRACK_ID";
+            "LEAST_SHARED_COUNT_THEN_COMBINED_PLAY_COUNT_THEN_DURATION_THEN_LAST_PLAYED_THEN_TRACK_ID";
 
     private final JdbcClient jdbcClient;
 
@@ -75,8 +75,8 @@ public class OurSongRepository {
                 join second_rollup sr on sr.spotify_track_id = fr.spotify_track_id
                 join spotify_track st on st.spotify_track_id = fr.spotify_track_id
                 order by
-                    fr.play_count + sr.play_count desc,
                     least(fr.play_count, sr.play_count) desc,
+                    fr.play_count + sr.play_count desc,
                     fr.total_duration_ms + sr.total_duration_ms desc,
                     greatest(fr.last_played_at_utc, sr.last_played_at_utc) desc,
                     fr.spotify_track_id asc

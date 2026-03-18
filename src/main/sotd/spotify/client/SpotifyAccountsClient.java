@@ -51,6 +51,28 @@ public class SpotifyAccountsClient {
         return response;
     }
 
+    /**
+     * Exchanges a stored refresh token for a fresh access token.
+     */
+    public SpotifyTokenResponse refreshAccessToken(String clientId, String clientSecret, String refreshToken) {
+        MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
+        form.add("grant_type", "refresh_token");
+        form.add("refresh_token", refreshToken);
+
+        SpotifyTokenResponse response = spotifyAccountsRestClient.post()
+                .uri("/api/token")
+                .header(HttpHeaders.AUTHORIZATION, basicAuth(clientId, clientSecret))
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .body(form)
+                .retrieve()
+                .body(SpotifyTokenResponse.class);
+
+        if (response == null || response.accessToken() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Spotify refresh-token exchange returned an empty response.");
+        }
+        return response;
+    }
+
     private static String basicAuth(String clientId, String clientSecret) {
         return "Basic " + HttpHeaders.encodeBasicAuth(clientId, clientSecret, null);
     }

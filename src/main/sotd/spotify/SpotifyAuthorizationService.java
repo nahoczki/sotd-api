@@ -23,10 +23,11 @@ import sotd.spotify.persistence.SpotifyAccountRepository;
 
 @Service
 /**
- * Coordinates the Spotify OAuth flow for the current private single-user app.
+ * Coordinates the Spotify OAuth flow for the current private app.
  *
- * <p>This service currently handles initial account linking and account lookup. Refresh-token reuse for
- * background polling is still a future step.
+ * <p>This service currently handles initial account linking and account lookup. Background polling and
+ * refresh-token reuse are implemented separately, but this auth flow still behaves like a single-user
+ * entry point because it does not yet attach the linked Spotify account to a distinct application user.
  */
 public class SpotifyAuthorizationService {
 

@@ -121,8 +121,9 @@ Key routes:
 - `GET /api/spotify/callback`
 - `GET /api/users/{appUserId}/spotify/connection`
 - `DELETE /api/users/{appUserId}/spotify/connection`
-- `GET /api/users/{appUserId}/song-of-the-day`
-- `GET /api/users/{appUserId}/our-song?otherUserId={otherUserId}&period=DAY|WEEK|MONTH`
+- `GET /api/users/{appUserId}/top-song?period=DAY|WEEK|MONTH|YEAR`
+- `GET /api/users/{appUserId}/song-of-the-day` as a compatibility alias for `period=DAY`
+- `GET /api/users/{appUserId}/our-song?otherUserId={otherUserId}&period=DAY|WEEK|MONTH|YEAR`
 
 The backend does not create users locally. It expects `{appUserId}` to come from your upstream account system.
 
@@ -147,6 +148,7 @@ Production profile note:
 
 - use `prod` for production runtime defaults
 - `prod` automatically activates `container`, so structured JSON console logging remains enabled
+- `prod` also enables strict startup validation for required Spotify, crypto, redirect, and upstream JWT settings
 
 ## Deployment Note
 

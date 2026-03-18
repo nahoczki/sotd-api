@@ -41,7 +41,6 @@ It is written for the app's current state, not a future roadmap state.
 ### Music insight reads
 
 - `GET /api/users/{appUserId}/top-song?period=DAY|WEEK|MONTH|YEAR`
-- `GET /api/users/{appUserId}/song-of-the-day` as a compatibility alias for `period=DAY`
 - `GET /api/users/{appUserId}/our-song?otherUserId={otherUserId}&period=DAY|WEEK|MONTH|YEAR`
 
 ## Prerequisites
@@ -243,7 +242,6 @@ What to verify:
 - `/api/users/{appUserId}/spotify/connection`
 - `DELETE /api/users/{appUserId}/spotify/connection`
 - `/api/users/{appUserId}/top-song`
-- `/api/users/{appUserId}/song-of-the-day`
 - `/api/users/{appUserId}/our-song`
 
 ## 3. Actuator Health
@@ -433,11 +431,6 @@ Supported periods:
 - `WEEK`
 - `MONTH`
 - `YEAR`
-
-Compatibility alias:
-
-- `GET /api/users/{appUserId}/song-of-the-day`
-- behaves the same as `GET /api/users/{appUserId}/top-song?period=DAY`
 
 ### `ready`
 

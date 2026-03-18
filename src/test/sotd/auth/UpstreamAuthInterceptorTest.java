@@ -25,7 +25,7 @@ class UpstreamAuthInterceptorTest {
         UpstreamAuthInterceptor interceptor = new UpstreamAuthInterceptor(configuredProperties(), tokenService);
         String token = tokenService.createToken(appUserId, Instant.parse("2026-03-19T00:05:00Z"));
 
-        MockHttpServletRequest request = requestFor(appUserId, "/api/users/" + appUserId + "/song-of-the-day");
+        MockHttpServletRequest request = requestFor(appUserId, "/api/users/" + appUserId + "/top-song");
         request.addHeader("Authorization", "Bearer " + token);
 
         boolean allowed = interceptor.preHandle(request, new MockHttpServletResponse(), new Object());
@@ -57,7 +57,7 @@ class UpstreamAuthInterceptorTest {
         UpstreamAuthInterceptor interceptor = new UpstreamAuthInterceptor(configuredProperties(), tokenService);
         String token = tokenService.createToken(tokenUserId, Instant.parse("2026-03-19T00:05:00Z"));
 
-        MockHttpServletRequest request = requestFor(pathUserId, "/api/users/" + pathUserId + "/song-of-the-day");
+        MockHttpServletRequest request = requestFor(pathUserId, "/api/users/" + pathUserId + "/top-song");
         request.addHeader("Authorization", "Bearer " + token);
 
         assertThatThrownBy(() -> interceptor.preHandle(request, new MockHttpServletResponse(), new Object()))
@@ -71,7 +71,7 @@ class UpstreamAuthInterceptorTest {
         UUID appUserId = UUID.fromString("11111111-1111-1111-1111-111111111111");
         UpstreamAuthInterceptor interceptor = new UpstreamAuthInterceptor(configuredProperties(), tokenService());
 
-        MockHttpServletRequest request = requestFor(appUserId, "/api/users/" + appUserId + "/song-of-the-day");
+        MockHttpServletRequest request = requestFor(appUserId, "/api/users/" + appUserId + "/top-song");
 
         assertThatThrownBy(() -> interceptor.preHandle(request, new MockHttpServletResponse(), new Object()))
                 .isInstanceOf(ResponseStatusException.class)

@@ -36,7 +36,7 @@ public class ActuatorInfoConfig {
                     .withDetail("features", Map.of(
                             "spotifyConnect", true,
                             "spotifyUnlink", true,
-                            "songOfDay", true,
+                            "topSong", true,
                             "ourSong", true
                     ))
                     .withDetail("auth", Map.of(

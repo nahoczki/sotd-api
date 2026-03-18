@@ -40,19 +40,4 @@ class TopSongControllerTest {
         assertThat(actual).isSameAs(expected);
         verify(topSongService).getTopSong(appUserId, SongPeriodType.MONTH);
     }
-
-    @Test
-    void songOfTheDayAliasDelegatesToDayPeriod() {
-        TopSongService topSongService = mock(TopSongService.class);
-        UUID appUserId = UUID.fromString("11111111-1111-1111-1111-111111111111");
-        TopSongResponse expected = TopSongResponse.pending(appUserId, SongPeriodType.DAY, LocalDate.parse("2026-03-17"));
-        when(topSongService.getTopSong(appUserId, SongPeriodType.DAY)).thenReturn(expected);
-
-        TopSongController controller = new TopSongController(topSongService);
-
-        TopSongResponse actual = controller.getSongOfTheDay(appUserId);
-
-        assertThat(actual).isSameAs(expected);
-        verify(topSongService).getTopSong(appUserId, SongPeriodType.DAY);
-    }
 }

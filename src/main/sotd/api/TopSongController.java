@@ -55,24 +55,4 @@ public class TopSongController {
     ) {
         return topSongService.getTopSong(appUserId, period);
     }
-
-    @GetMapping("/song-of-the-day")
-    @ResponseStatus(HttpStatus.OK)
-    @Operation(
-            summary = "Get song of the day",
-            description = "Compatibility alias for GET /top-song?period=DAY.",
-            deprecated = true,
-            security = @SecurityRequirement(name = OpenApiConfig.UPSTREAM_HEADER_AUTH_SCHEME)
-    )
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Daily top-song state returned."),
-            @ApiResponse(responseCode = "401", description = "Missing or invalid upstream auth token.", content = @Content),
-            @ApiResponse(responseCode = "403", description = "Upstream token does not match the requested UUID.", content = @Content)
-    })
-    public TopSongResponse getSongOfTheDay(
-            @Parameter(description = "Stable upstream application user UUID.", required = true)
-            @PathVariable UUID appUserId
-    ) {
-        return topSongService.getTopSong(appUserId, SongPeriodType.DAY);
-    }
 }

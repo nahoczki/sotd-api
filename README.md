@@ -126,6 +126,13 @@ User-scoped routes are protected by a signed upstream auth token. The upstream b
 - send it in the `Authorization: Bearer {jwt}` header for server-to-server reads
 - append it as the `upstreamAuth` query parameter for browser redirects to `/spotify/connect`
 
+Useful operational endpoints:
+
+- `GET /actuator/health`
+- `GET /actuator/info`
+- `GET /docs`
+- `GET /openapi`
+
 ## Deployment Note
 
 Running this service as an internal-only Kubernetes service is the right default for the read endpoints.

@@ -43,6 +43,7 @@ class SpotifyAccessTokenServiceTest {
                 accountsClient,
                 tokenEncryptionService,
                 repository,
+                mock(SpotifyOperationalMetrics.class),
                 clock
         );
 
@@ -79,6 +80,7 @@ class SpotifyAccessTokenServiceTest {
                 accountsClient,
                 tokenEncryptionService,
                 repository,
+                mock(SpotifyOperationalMetrics.class),
                 clock
         );
 
@@ -110,6 +112,7 @@ class SpotifyAccessTokenServiceTest {
                 accountsClient,
                 tokenEncryptionService,
                 repository,
+                mock(SpotifyOperationalMetrics.class),
                 clock
         );
 

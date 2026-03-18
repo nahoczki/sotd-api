@@ -47,6 +47,7 @@ class SpotifyAuthorizationServiceTest {
                 encryptionService(),
                 mock(SpotifyAccountRepository.class),
                 mock(SpotifyAccessTokenService.class),
+                mock(SpotifyOperationalMetrics.class),
                 clock
         );
 
@@ -88,6 +89,7 @@ class SpotifyAuthorizationServiceTest {
                 encryptionService(),
                 repository,
                 mock(SpotifyAccessTokenService.class),
+                mock(SpotifyOperationalMetrics.class),
                 clock
         );
 
@@ -127,6 +129,7 @@ class SpotifyAuthorizationServiceTest {
                 encryptionService(),
                 mock(SpotifyAccountRepository.class),
                 mock(SpotifyAccessTokenService.class),
+                mock(SpotifyOperationalMetrics.class),
                 clock
         );
 
@@ -155,6 +158,7 @@ class SpotifyAuthorizationServiceTest {
                 encryptionService(),
                 mock(SpotifyAccountRepository.class),
                 mock(SpotifyAccessTokenService.class),
+                mock(SpotifyOperationalMetrics.class),
                 clock
         );
 
@@ -187,6 +191,7 @@ class SpotifyAuthorizationServiceTest {
                 encryptionService(),
                 mock(SpotifyAccountRepository.class),
                 mock(SpotifyAccessTokenService.class),
+                mock(SpotifyOperationalMetrics.class),
                 clock
         );
 
@@ -217,6 +222,7 @@ class SpotifyAuthorizationServiceTest {
                 encryptionService(),
                 repository,
                 accessTokenService,
+                mock(SpotifyOperationalMetrics.class),
                 clock
         );
 

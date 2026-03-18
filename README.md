@@ -18,12 +18,13 @@ Implemented now:
 - period-based top-song reads built from daily rollups
 - pairwise shared-song reads built from daily rollups
 - user-scoped read endpoints under `/api/users/{appUserId}/...`
+- custom Micrometer metrics for callback, token refresh, polling, and account-state health
 
 Not implemented yet:
 
 - frontend callback redirect flow
-- weekly, monthly, and yearly winner reads
 - multi-replica poller coordination
+- historical date selection beyond current active periods
 
 ## Stack
 
@@ -149,8 +150,24 @@ Useful operational endpoints:
 
 - `GET /actuator/health`
 - `GET /actuator/info`
+- `GET /actuator/metrics`
 - `GET /docs`
 - `GET /openapi`
+
+Custom metrics are now emitted into the Micrometer registry for:
+
+- `sotd.spotify.callback.outcomes`
+- `sotd.spotify.callback.duration`
+- `sotd.spotify.token_refresh.outcomes`
+- `sotd.spotify.token_refresh.duration`
+- `sotd.spotify.poll.account.outcomes`
+- `sotd.spotify.poll.account.duration`
+- `sotd.spotify.poll.inserted_events`
+- `sotd.spotify.accounts`
+- `sotd.spotify.poll.active_without_successful_poll`
+- `sotd.spotify.poll.oldest_success_age.seconds`
+
+All metrics include the common tag `application=${spring.application.name}`. `/actuator/metrics` is exposed now for internal operational use and should stay off the public internet-facing edge. Prometheus scraping is still a separate deployment decision.
 
 Production profile note:
 

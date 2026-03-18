@@ -1,5 +1,6 @@
 package sotd.spotify;
 
+import io.micrometer.core.instrument.Timer;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -31,6 +32,7 @@ public class SpotifyAccessTokenService {
     private final SpotifyAccountsClient spotifyAccountsClient;
     private final TokenEncryptionService tokenEncryptionService;
     private final SpotifyAccountRepository spotifyAccountRepository;
+    private final SpotifyOperationalMetrics spotifyOperationalMetrics;
     private final Clock clock;
     private final Map<Long, CachedAccessToken> tokenCache = new ConcurrentHashMap<>();
 
@@ -39,12 +41,14 @@ public class SpotifyAccessTokenService {
             SpotifyAccountsClient spotifyAccountsClient,
             TokenEncryptionService tokenEncryptionService,
             SpotifyAccountRepository spotifyAccountRepository,
+            SpotifyOperationalMetrics spotifyOperationalMetrics,
             Clock clock
     ) {
         this.spotifyProperties = spotifyProperties;
         this.spotifyAccountsClient = spotifyAccountsClient;
         this.tokenEncryptionService = tokenEncryptionService;
         this.spotifyAccountRepository = spotifyAccountRepository;
+        this.spotifyOperationalMetrics = spotifyOperationalMetrics;
         this.clock = clock;
     }
 
@@ -62,6 +66,7 @@ public class SpotifyAccessTokenService {
     }
 
     private String refreshAccessToken(SpotifyPollingAccount account, Instant now) {
+        Timer.Sample refreshSample = spotifyOperationalMetrics.startTokenRefreshTimer();
         requireConfiguredCredentials();
         try {
             String refreshToken = tokenEncryptionService.decrypt(account.refreshTokenEncrypted());
@@ -81,10 +86,12 @@ public class SpotifyAccessTokenService {
             if (!updated) {
                 tokenCache.remove(account.id());
                 log.debug("Skipping Spotify token cache update because account {} is no longer active.", account.spotifyUserId());
+                spotifyOperationalMetrics.recordTokenRefreshInactive(refreshSample);
                 throw new SpotifyReauthRequiredException("Spotify account is no longer active.", null);
             }
             tokenCache.put(account.id(), new CachedAccessToken(response.accessToken(), expiresAt));
             log.debug("Refreshed Spotify access token for account {}. Expires at {}.", account.spotifyUserId(), expiresAt);
+            spotifyOperationalMetrics.recordTokenRefreshSuccess(refreshSample);
             return response.accessToken();
         }
         catch (RestClientResponseException ex) {
@@ -92,8 +99,14 @@ public class SpotifyAccessTokenService {
                 tokenCache.remove(account.id());
                 spotifyAccountRepository.markReauthRequired(account.id());
                 log.warn("Spotify account {} requires reauthorization after refresh-token failure.", account.spotifyUserId());
+                spotifyOperationalMetrics.recordTokenRefreshReauthRequired(refreshSample);
                 throw new SpotifyReauthRequiredException("Spotify account requires reauthorization.", ex);
             }
+            spotifyOperationalMetrics.recordTokenRefreshFailure(refreshSample);
+            throw ex;
+        }
+        catch (RuntimeException ex) {
+            spotifyOperationalMetrics.recordTokenRefreshFailure(refreshSample);
             throw ex;
         }
     }

@@ -1,5 +1,6 @@
 package sotd.spotify;
 
+import io.micrometer.core.instrument.Timer;
 import java.net.URI;
 import java.time.Clock;
 import java.time.Instant;
@@ -22,7 +23,6 @@ import sotd.spotify.client.SpotifyCurrentUserProfile;
 import sotd.spotify.client.SpotifyTokenResponse;
 import sotd.spotify.persistence.SpotifyAccountRepository.DisconnectedSpotifyAccount;
 import sotd.spotify.persistence.SpotifyAccountRepository;
-import sotd.spotify.SpotifyAccessTokenService;
 
 @Service
 /**
@@ -43,6 +43,7 @@ public class SpotifyAuthorizationService {
     private final TokenEncryptionService tokenEncryptionService;
     private final SpotifyAccountRepository spotifyAccountRepository;
     private final SpotifyAccessTokenService spotifyAccessTokenService;
+    private final SpotifyOperationalMetrics spotifyOperationalMetrics;
     private final Clock clock;
 
     public SpotifyAuthorizationService(
@@ -53,6 +54,7 @@ public class SpotifyAuthorizationService {
             TokenEncryptionService tokenEncryptionService,
             SpotifyAccountRepository spotifyAccountRepository,
             SpotifyAccessTokenService spotifyAccessTokenService,
+            SpotifyOperationalMetrics spotifyOperationalMetrics,
             Clock clock
     ) {
         this.spotifyProperties = spotifyProperties;
@@ -62,6 +64,7 @@ public class SpotifyAuthorizationService {
         this.tokenEncryptionService = tokenEncryptionService;
         this.spotifyAccountRepository = spotifyAccountRepository;
         this.spotifyAccessTokenService = spotifyAccessTokenService;
+        this.spotifyOperationalMetrics = spotifyOperationalMetrics;
         this.clock = clock;
     }
 
@@ -87,59 +90,68 @@ public class SpotifyAuthorizationService {
     }
 
     public SpotifyConnectionResponse handleCallback(String code, String state, String error) {
+        Timer.Sample callbackSample = spotifyOperationalMetrics.startCallbackTimer();
         try {
-            requireConfiguredCredentials();
-        }
-        catch (ResponseStatusException ex) {
-            log.error("Spotify callback failed during {} because credentials are not configured.", SpotifyCallbackStage.CONFIGURATION);
-            throw SpotifyCallbackException.configuration(
-                    "Spotify client credentials are not configured.",
-                    ex
-            );
-        }
+            try {
+                requireConfiguredCredentials();
+            }
+            catch (ResponseStatusException ex) {
+                log.error("Spotify callback failed during {} because credentials are not configured.", SpotifyCallbackStage.CONFIGURATION);
+                throw SpotifyCallbackException.configuration(
+                        "Spotify client credentials are not configured.",
+                        ex
+                );
+            }
 
-        UUID appUserId = consumeStateOrThrow(state);
+            UUID appUserId = consumeStateOrThrow(state);
 
-        if (StringUtils.hasText(error)) {
-            log.warn(
-                    "Spotify callback failed during {} for app user {}: spotify returned error '{}'.",
-                    SpotifyCallbackStage.AUTHORIZATION_DENIED,
+            if (StringUtils.hasText(error)) {
+                log.warn(
+                        "Spotify callback failed during {} for app user {}: spotify returned error '{}'.",
+                        SpotifyCallbackStage.AUTHORIZATION_DENIED,
+                        appUserId,
+                        error
+                );
+                throw SpotifyCallbackException.authorizationDenied(appUserId, "Spotify authorization was denied or cancelled.");
+            }
+            if (!StringUtils.hasText(code)) {
+                log.warn(
+                        "Spotify callback failed during {} for app user {}: authorization code was missing.",
+                        SpotifyCallbackStage.MISSING_CODE,
+                        appUserId
+                );
+                throw SpotifyCallbackException.missingCode(appUserId, "Spotify callback is missing the authorization code.");
+            }
+
+            SpotifyTokenResponse tokenResponse = exchangeAuthorizationCode(appUserId, code);
+            SpotifyCurrentUserProfile userProfile = loadCurrentUserProfile(appUserId, tokenResponse.accessToken());
+            Instant now = clock.instant();
+            Instant tokenExpiresAt = now.plusSeconds(tokenResponse.expiresIn());
+
+            persistLinkedAccount(appUserId, userProfile, tokenResponse, now, tokenExpiresAt);
+            log.info(
+                    "Linked Spotify account {} ({}) to app user {} with token expiry at {}.",
+                    userProfile.id(),
+                    userProfile.displayName(),
                     appUserId,
-                    error
+                    tokenExpiresAt
             );
-            throw SpotifyCallbackException.authorizationDenied(appUserId, "Spotify authorization was denied or cancelled.");
-        }
-        if (!StringUtils.hasText(code)) {
-            log.warn(
-                    "Spotify callback failed during {} for app user {}: authorization code was missing.",
-                    SpotifyCallbackStage.MISSING_CODE,
-                    appUserId
+
+            SpotifyConnectionResponse response = new SpotifyConnectionResponse(
+                    "connected",
+                    appUserId,
+                    userProfile.id(),
+                    userProfile.displayName(),
+                    tokenResponse.scope(),
+                    tokenExpiresAt
             );
-            throw SpotifyCallbackException.missingCode(appUserId, "Spotify callback is missing the authorization code.");
+            spotifyOperationalMetrics.recordCallbackSuccess(callbackSample);
+            return response;
         }
-
-        SpotifyTokenResponse tokenResponse = exchangeAuthorizationCode(appUserId, code);
-        SpotifyCurrentUserProfile userProfile = loadCurrentUserProfile(appUserId, tokenResponse.accessToken());
-        Instant now = clock.instant();
-        Instant tokenExpiresAt = now.plusSeconds(tokenResponse.expiresIn());
-
-        persistLinkedAccount(appUserId, userProfile, tokenResponse, now, tokenExpiresAt);
-        log.info(
-                "Linked Spotify account {} ({}) to app user {} with token expiry at {}.",
-                userProfile.id(),
-                userProfile.displayName(),
-                appUserId,
-                tokenExpiresAt
-        );
-
-        return new SpotifyConnectionResponse(
-                "connected",
-                appUserId,
-                userProfile.id(),
-                userProfile.displayName(),
-                tokenResponse.scope(),
-                tokenExpiresAt
-        );
+        catch (SpotifyCallbackException ex) {
+            spotifyOperationalMetrics.recordCallbackFailure(ex.getStage(), callbackSample);
+            throw ex;
+        }
     }
 
     public Optional<SpotifyLinkedAccountView> getCurrentConnection(UUID appUserId) {

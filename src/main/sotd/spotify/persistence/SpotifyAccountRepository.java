@@ -183,6 +183,51 @@ public class SpotifyAccountRepository {
     }
 
     /**
+     * Counts Spotify account rows by status for operational gauges.
+     */
+    public long countAccountsByStatus(String status) {
+        return jdbcClient.sql("""
+                select count(*)
+                from spotify_account
+                where status = ?
+                """)
+                .param(status)
+                .query(Long.class)
+                .single();
+    }
+
+    /**
+     * Counts active accounts that have not yet completed a successful poll.
+     */
+    public long countActiveAccountsWithoutSuccessfulPoll() {
+        return jdbcClient.sql("""
+                select count(*)
+                from spotify_account
+                where status = 'ACTIVE'
+                  and refresh_token_encrypted is not null
+                  and last_successful_poll_at is null
+                """)
+                .query(Long.class)
+                .single();
+    }
+
+    /**
+     * Returns the age in seconds of the oldest successful poll across active accounts.
+     */
+    public Double findOldestSuccessfulPollAgeSeconds() {
+        return jdbcClient.sql("""
+                select extract(epoch from current_timestamp - min(last_successful_poll_at))
+                from spotify_account
+                where status = 'ACTIVE'
+                  and refresh_token_encrypted is not null
+                  and last_successful_poll_at is not null
+                """)
+                .query(Double.class)
+                .optional()
+                .orElse(null);
+    }
+
+    /**
      * Persists new token metadata after a refresh-token exchange.
      */
     public boolean updateTokenState(

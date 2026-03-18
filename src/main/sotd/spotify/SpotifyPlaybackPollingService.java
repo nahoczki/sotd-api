@@ -1,5 +1,6 @@
 package sotd.spotify;
 
+import io.micrometer.core.instrument.Timer;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -29,6 +30,7 @@ public class SpotifyPlaybackPollingService {
     private final SpotifyApiClient spotifyApiClient;
     private final SpotifyRecentlyPlayedIngestionService ingestionService;
     private final SongRollupRepository songRollupRepository;
+    private final SpotifyOperationalMetrics spotifyOperationalMetrics;
     private final Clock clock;
 
     public SpotifyPlaybackPollingService(
@@ -37,6 +39,7 @@ public class SpotifyPlaybackPollingService {
             SpotifyApiClient spotifyApiClient,
             SpotifyRecentlyPlayedIngestionService ingestionService,
             SongRollupRepository songRollupRepository,
+            SpotifyOperationalMetrics spotifyOperationalMetrics,
             Clock clock
     ) {
         this.spotifyAccountRepository = spotifyAccountRepository;
@@ -44,6 +47,7 @@ public class SpotifyPlaybackPollingService {
         this.spotifyApiClient = spotifyApiClient;
         this.ingestionService = ingestionService;
         this.songRollupRepository = songRollupRepository;
+        this.spotifyOperationalMetrics = spotifyOperationalMetrics;
         this.clock = clock;
     }
 
@@ -63,6 +67,7 @@ public class SpotifyPlaybackPollingService {
             return;
         }
 
+        Timer.Sample pollSample = spotifyOperationalMetrics.startPollAccountTimer();
         try {
             SpotifyRecentlyPlayedResponse response = fetchRecentlyPlayed(account);
             if (!spotifyAccountRepository.isActiveForPolling(account.id())) {
@@ -81,21 +86,30 @@ public class SpotifyPlaybackPollingService {
                     account.spotifyUserId(),
                     result.insertedEvents()
             );
+            spotifyOperationalMetrics.recordPollAccountSuccess(pollSample, result.insertedEvents());
         }
         catch (SpotifyReauthRequiredException ex) {
+            spotifyOperationalMetrics.recordPollAccountReauthRequired(pollSample);
             log.warn("Skipping polling for Spotify account {} until it is reauthorized.", account.spotifyUserId());
         }
         catch (RestClientResponseException ex) {
             if (ex.getStatusCode() == HttpStatus.TOO_MANY_REQUESTS) {
+                spotifyOperationalMetrics.recordPollAccountRateLimited(pollSample);
                 log.warn("Spotify rate-limited recently-played polling for account {}.", account.spotifyUserId());
                 return;
             }
             if (ex.getStatusCode() == HttpStatus.UNAUTHORIZED) {
                 spotifyAccessTokenService.invalidate(account.id());
                 spotifyAccountRepository.markReauthRequired(account.id());
+                spotifyOperationalMetrics.recordPollAccountUnauthorized(pollSample);
                 log.warn("Spotify account {} was unauthorized during recently-played polling.", account.spotifyUserId());
                 return;
             }
+            spotifyOperationalMetrics.recordPollAccountFailure(pollSample);
+            throw ex;
+        }
+        catch (RuntimeException ex) {
+            spotifyOperationalMetrics.recordPollAccountFailure(pollSample);
             throw ex;
         }
     }

@@ -38,6 +38,11 @@ public class ActuatorInfoConfig {
                         "headerName", upstreamAuthProperties.getHeaderName(),
                         "connectQueryParameter", upstreamAuthProperties.getQueryParameterName()
                 ))
+                .withDetail("proxy", Map.of(
+                        "forwardHeadersStrategy", environment.getProperty("server.forward-headers-strategy", "none"),
+                        "tomcatRedirectContextRoot",
+                        environment.getProperty("server.tomcat.redirect-context-root", Boolean.class, true)
+                ))
                 .withDetail("polling", Map.of(
                         "recentlyPlayedInterval", spotifyProperties.getPolling().getRecentlyPlayedInterval().toString(),
                         "currentPlaybackInterval", spotifyProperties.getPolling().getCurrentPlaybackInterval().toString(),

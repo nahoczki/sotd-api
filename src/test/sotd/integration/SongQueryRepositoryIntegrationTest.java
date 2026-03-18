@@ -9,17 +9,17 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.transaction.annotation.Transactional;
 import sotd.song.OurSongMatchView;
-import sotd.song.OurSongPeriodType;
 import sotd.song.OurSongRepository;
-import sotd.song.SongOfDayRepository;
-import sotd.song.SongOfDayWinnerView;
+import sotd.song.SongPeriodType;
+import sotd.song.TopSongRepository;
+import sotd.song.TopSongWinnerView;
 import sotd.support.PostgresJdbcIntegrationTestSupport;
 
 @Transactional
 class SongQueryRepositoryIntegrationTest extends PostgresJdbcIntegrationTestSupport {
 
     @Autowired
-    private SongOfDayRepository songOfDayRepository;
+    private TopSongRepository topSongRepository;
 
     @Autowired
     private OurSongRepository ourSongRepository;
@@ -32,9 +32,14 @@ class SongQueryRepositoryIntegrationTest extends PostgresJdbcIntegrationTestSupp
         UUID appUserId = UUID.fromString("11111111-1111-1111-1111-111111111111");
         long accountId = insertSpotifyAccount(appUserId, "lukerykta", "Luke");
         insertSpotifyTrack("track-1", "Track One");
-        insertSongPeriodWinner(accountId, "track-1", LocalDate.parse("2026-03-18"), 4);
+        insertSongPeriodRollup(accountId, "track-1", LocalDate.parse("2026-03-18"), 4, 720_000L, "2026-03-18T21:00:00Z");
 
-        SongOfDayWinnerView winner = songOfDayRepository.findCurrentWinner(appUserId, LocalDate.parse("2026-03-18"))
+        TopSongWinnerView winner = topSongRepository.findTopSong(
+                        appUserId,
+                        SongPeriodType.DAY,
+                        LocalDate.parse("2026-03-18"),
+                        LocalDate.parse("2026-03-19")
+                )
                 .orElseThrow();
 
         assertThat(winner.appUserId()).isEqualTo(appUserId);
@@ -64,7 +69,7 @@ class SongQueryRepositoryIntegrationTest extends PostgresJdbcIntegrationTestSupp
         OurSongMatchView match = ourSongRepository.findBestSharedSong(
                         firstUserId,
                         secondUserId,
-                        OurSongPeriodType.DAY,
+                        SongPeriodType.DAY,
                         day,
                         day.plusDays(1)
                 )
@@ -106,21 +111,6 @@ class SongQueryRepositoryIntegrationTest extends PostgresJdbcIntegrationTestSupp
                 ) values (?, ?, 180000)
                 """)
                 .params(spotifyTrackId, name)
-                .update();
-    }
-
-    private void insertSongPeriodWinner(long accountId, String spotifyTrackId, LocalDate periodStartLocal, int playCount) {
-        jdbcClient.sql("""
-                insert into song_period_winner (
-                    spotify_account_id,
-                    period_type,
-                    period_start_local,
-                    spotify_track_id,
-                    play_count,
-                    tie_break_rule
-                ) values (?, 'DAY', ?, ?, ?, 'PLAY_COUNT_THEN_LAST_PLAYED_THEN_TRACK_ID')
-                """)
-                .params(accountId, periodStartLocal, spotifyTrackId, playCount)
                 .update();
     }
 

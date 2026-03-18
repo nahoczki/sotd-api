@@ -150,6 +150,7 @@ Production profile note:
 - use `prod` for production runtime defaults
 - `prod` automatically activates `container`, so structured JSON console logging remains enabled
 - `prod` also enables strict startup validation for required Spotify, crypto, redirect, and upstream JWT settings
+- `prod` defaults `server.forward-headers-strategy` to `framework` so trusted proxy headers are honored
 
 ## Deployment Note
 
@@ -160,6 +161,7 @@ Important OAuth caveat:
 - the Spotify connect flow and `/api/spotify/callback` still need a browser-visible route that Spotify can redirect to
 - that can be a direct ingress to this service or a path proxied through your main app/backend
 - the service does not need to be generally public as a separate internet-facing API if your upstream app is handling the external edge
+- if you proxy through an ingress or upstream backend, forward standard `Forwarded` or `X-Forwarded-*` headers consistently
 
 ## Database
 

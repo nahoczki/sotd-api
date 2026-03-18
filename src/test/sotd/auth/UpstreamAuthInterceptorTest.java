@@ -19,7 +19,7 @@ import org.springframework.web.servlet.HandlerMapping;
 class UpstreamAuthInterceptorTest {
 
     @Test
-    void preHandleAcceptsHeaderTokenForMatchingUser() throws Exception {
+    void preHandleAcceptsHeaderTokenForMatchingUser() {
         UUID appUserId = UUID.fromString("11111111-1111-1111-1111-111111111111");
         UpstreamRequestTokenService tokenService = tokenService();
         UpstreamAuthInterceptor interceptor = new UpstreamAuthInterceptor(configuredProperties(), tokenService);
@@ -35,7 +35,7 @@ class UpstreamAuthInterceptorTest {
     }
 
     @Test
-    void preHandleAcceptsQueryParameterTokenForBrowserRedirectFlow() throws Exception {
+    void preHandleAcceptsQueryParameterTokenForBrowserRedirectFlow() {
         UUID appUserId = UUID.fromString("11111111-1111-1111-1111-111111111111");
         UpstreamRequestTokenService tokenService = tokenService();
         UpstreamAuthInterceptor interceptor = new UpstreamAuthInterceptor(configuredProperties(), tokenService);

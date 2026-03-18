@@ -1,6 +1,6 @@
 # sotd-api
 
-Private Spring Boot API for tracking Spotify listening history and surfacing user-scoped "song of the day" results backed by PostgreSQL.
+Private Spring Boot API for tracking Spotify listening history and surfacing user-scoped "song of the day" and pairwise "our song" results backed by PostgreSQL.
 
 ## Current Status
 
@@ -15,6 +15,7 @@ Implemented now:
 - automatic access-token refresh for polling
 - recently-played polling and ingestion
 - daily song rollups and winner computation
+- pairwise shared-song reads built from daily rollups
 - user-scoped read endpoints under `/api/users/{appUserId}/...`
 
 Not implemented yet:
@@ -41,7 +42,7 @@ The long-term goal is to:
 2. bind that Spotify account to a stable upstream `app_user_id`
 3. ingest listening history into PostgreSQL
 4. compute daily, weekly, monthly, and yearly winners from stored play events
-5. expose fast frontend-facing endpoints such as `song-of-the-day`
+5. expose fast frontend-facing endpoints such as `song-of-the-day` and `our-song`
 
 ## Project Layout
 
@@ -101,13 +102,16 @@ Key routes:
 - `GET /api/spotify/callback`
 - `GET /api/users/{appUserId}/spotify/connection`
 - `GET /api/users/{appUserId}/song-of-the-day`
+- `GET /api/users/{appUserId}/our-song?otherUserId={otherUserId}&period=DAY|WEEK|MONTH`
 
 The backend does not create users locally. It expects `{appUserId}` to come from your upstream account system.
 
 User-scoped routes are protected by a signed upstream auth token. The upstream backend is expected to:
 
-- mint a short-lived token for a specific `app_user_id`
-- send it in the `X-SOTD-UPSTREAM-AUTH` header for server-to-server reads
+- verify its own user/session auth boundary
+- resolve the canonical persisted `app_user_id`
+- mint a short-lived JWT for a specific `app_user_id`
+- send it in the `Authorization: Bearer {jwt}` header for server-to-server reads
 - append it as the `upstreamAuth` query parameter for browser redirects to `/spotify/connect`
 
 ## Database
@@ -134,18 +138,19 @@ Local callback URI:
 
 Local connect flow:
 
-- generate a short-lived upstream auth token for the target UUID
+- generate a short-lived upstream auth JWT for the target UUID
 - open `http://127.0.0.1:8080/api/users/{appUserId}/spotify/connect?upstreamAuth={token}` in a browser
 - complete Spotify auth
-- inspect the linked account with `X-SOTD-UPSTREAM-AUTH: {token}` at `http://127.0.0.1:8080/api/users/{appUserId}/spotify/connection`
-- read the winner with `X-SOTD-UPSTREAM-AUTH: {token}` at `http://127.0.0.1:8080/api/users/{appUserId}/song-of-the-day`
+- inspect the linked account with `Authorization: Bearer {token}` at `http://127.0.0.1:8080/api/users/{appUserId}/spotify/connection`
+- read the winner with `Authorization: Bearer {token}` at `http://127.0.0.1:8080/api/users/{appUserId}/song-of-the-day`
+- read the shared song with `Authorization: Bearer {token}` at `http://127.0.0.1:8080/api/users/{appUserId}/our-song?otherUserId={otherUserId}&period=DAY`
 
 If you linked accounts before the `app_user_id` migration, re-run the connect flow through the user-scoped URL so the existing `spotify_account` row is attached to the correct UUID.
 
 ## Next Recommended Work
 
 1. Finalize the token-minting contract on the upstream backend that will call this service.
-2. Expose weekly, monthly, and yearly winner endpoints.
+2. Decide whether pairwise reads should support explicit date selection in addition to current-period reads.
 3. Replace in-memory OAuth state with a shared store for multi-instance deployment.
 4. Add operational dashboards around polling success, lag, and reauthorization status.
-5. Decide whether this service should eventually validate upstream users directly or remain trust-boundary only.
+5. Add weekly, monthly, and yearly single-user winner endpoints to match the pairwise period support.

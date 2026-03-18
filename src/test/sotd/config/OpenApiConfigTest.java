@@ -17,7 +17,9 @@ class OpenApiConfigTest {
         assertThat(openAPI.getComponents().getSecuritySchemes())
                 .containsKeys(OpenApiConfig.UPSTREAM_HEADER_AUTH_SCHEME, OpenApiConfig.UPSTREAM_QUERY_AUTH_SCHEME);
         assertThat(openAPI.getComponents().getSecuritySchemes().get(OpenApiConfig.UPSTREAM_HEADER_AUTH_SCHEME).getType())
-                .isEqualTo(SecurityScheme.Type.APIKEY);
+                .isEqualTo(SecurityScheme.Type.HTTP);
+        assertThat(openAPI.getComponents().getSecuritySchemes().get(OpenApiConfig.UPSTREAM_HEADER_AUTH_SCHEME).getScheme())
+                .isEqualTo("bearer");
         assertThat(openAPI.getComponents().getSecuritySchemes().get(OpenApiConfig.UPSTREAM_QUERY_AUTH_SCHEME).getIn())
                 .isEqualTo(SecurityScheme.In.QUERY);
     }

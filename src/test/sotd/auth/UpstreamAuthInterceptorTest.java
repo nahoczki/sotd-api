@@ -19,14 +19,14 @@ import org.springframework.web.servlet.HandlerMapping;
 class UpstreamAuthInterceptorTest {
 
     @Test
-    void preHandleAcceptsHeaderTokenForMatchingUser() throws Exception {
+    void preHandleAcceptsHeaderTokenForMatchingUser() {
         UUID appUserId = UUID.fromString("11111111-1111-1111-1111-111111111111");
         UpstreamRequestTokenService tokenService = tokenService();
         UpstreamAuthInterceptor interceptor = new UpstreamAuthInterceptor(configuredProperties(), tokenService);
         String token = tokenService.createToken(appUserId, Instant.parse("2026-03-19T00:05:00Z"));
 
-        MockHttpServletRequest request = requestFor(appUserId);
-        request.addHeader("X-SOTD-UPSTREAM-AUTH", token);
+        MockHttpServletRequest request = requestFor(appUserId, "/api/users/" + appUserId + "/song-of-the-day");
+        request.addHeader("Authorization", "Bearer " + token);
 
         boolean allowed = interceptor.preHandle(request, new MockHttpServletResponse(), new Object());
 
@@ -35,13 +35,13 @@ class UpstreamAuthInterceptorTest {
     }
 
     @Test
-    void preHandleAcceptsQueryParameterTokenForBrowserRedirectFlow() throws Exception {
+    void preHandleAcceptsQueryParameterTokenForBrowserRedirectFlow() {
         UUID appUserId = UUID.fromString("11111111-1111-1111-1111-111111111111");
         UpstreamRequestTokenService tokenService = tokenService();
         UpstreamAuthInterceptor interceptor = new UpstreamAuthInterceptor(configuredProperties(), tokenService);
         String token = tokenService.createToken(appUserId, Instant.parse("2026-03-19T00:05:00Z"));
 
-        MockHttpServletRequest request = requestFor(appUserId);
+        MockHttpServletRequest request = requestFor(appUserId, "/api/users/" + appUserId + "/spotify/connect");
         request.addParameter("upstreamAuth", token);
 
         boolean allowed = interceptor.preHandle(request, new MockHttpServletResponse(), new Object());
@@ -57,8 +57,8 @@ class UpstreamAuthInterceptorTest {
         UpstreamAuthInterceptor interceptor = new UpstreamAuthInterceptor(configuredProperties(), tokenService);
         String token = tokenService.createToken(tokenUserId, Instant.parse("2026-03-19T00:05:00Z"));
 
-        MockHttpServletRequest request = requestFor(pathUserId);
-        request.addHeader("X-SOTD-UPSTREAM-AUTH", token);
+        MockHttpServletRequest request = requestFor(pathUserId, "/api/users/" + pathUserId + "/song-of-the-day");
+        request.addHeader("Authorization", "Bearer " + token);
 
         assertThatThrownBy(() -> interceptor.preHandle(request, new MockHttpServletResponse(), new Object()))
                 .isInstanceOf(ResponseStatusException.class)
@@ -71,7 +71,7 @@ class UpstreamAuthInterceptorTest {
         UUID appUserId = UUID.fromString("11111111-1111-1111-1111-111111111111");
         UpstreamAuthInterceptor interceptor = new UpstreamAuthInterceptor(configuredProperties(), tokenService());
 
-        MockHttpServletRequest request = requestFor(appUserId);
+        MockHttpServletRequest request = requestFor(appUserId, "/api/users/" + appUserId + "/song-of-the-day");
 
         assertThatThrownBy(() -> interceptor.preHandle(request, new MockHttpServletResponse(), new Object()))
                 .isInstanceOf(ResponseStatusException.class)
@@ -79,8 +79,8 @@ class UpstreamAuthInterceptorTest {
                 .hasMessageContaining("Missing upstream authorization token");
     }
 
-    private static MockHttpServletRequest requestFor(UUID appUserId) {
-        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/users/" + appUserId + "/song-of-the-day");
+    private static MockHttpServletRequest requestFor(UUID appUserId, String path) {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", path);
         request.setAttribute(HandlerMapping.URI_TEMPLATE_VARIABLES_ATTRIBUTE, Map.of("appUserId", appUserId.toString()));
         return request;
     }
@@ -96,7 +96,10 @@ class UpstreamAuthInterceptorTest {
         UpstreamAuthProperties properties = new UpstreamAuthProperties();
         properties.setEnabled(true);
         properties.setSharedSecret("shared-secret-for-tests");
+        properties.setIssuer("accounts-api");
+        properties.setAudience("sotd-api");
         properties.setClockSkew(Duration.ofSeconds(30));
+        properties.setHeaderName("Authorization");
         return properties;
     }
 }

@@ -1,35 +1,24 @@
 package sotd.auth;
 
-import java.nio.charset.StandardCharsets;
-import java.security.GeneralSecurityException;
-import java.security.MessageDigest;
+import com.auth0.jwt.JWT;
+import com.auth0.jwt.JWTVerifier;
+import com.auth0.jwt.algorithms.Algorithm;
+import com.auth0.jwt.exceptions.JWTVerificationException;
+import com.auth0.jwt.interfaces.DecodedJWT;
 import java.time.Clock;
 import java.time.Instant;
-import java.util.Base64;
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.util.Date;
 import java.util.UUID;
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * Issues and verifies short-lived HMAC-signed tokens minted by the upstream application backend.
- *
- * <p>Token format:
- *
- * <ul>
- *   <li>payload: `sub={uuid}&exp={epochSeconds}`
- *   <li>token: `base64url(payload).base64url(hmacSha256(payload, sharedSecret))`
- * </ul>
+ * Issues and verifies short-lived JWTs minted by the upstream application backend.
  */
 @Service
 public class UpstreamRequestTokenService {
-
-    private static final String HMAC_ALGORITHM = "HmacSHA256";
 
     private final UpstreamAuthProperties upstreamAuthProperties;
     private final Clock clock;
@@ -40,42 +29,42 @@ public class UpstreamRequestTokenService {
     }
 
     /**
-     * Generates a signed token for a specific app user. This is primarily useful for tests and local
-     * development until the real upstream backend is integrated.
+     * Generates a signed JWT for a specific app user. This remains useful for tests and local
+     * development while the upstream backend integration is being finalized.
      */
     public String createToken(UUID appUserId, Instant expiresAt) {
-        requireConfiguredSharedSecret();
-        String payload = "sub=" + appUserId + "&exp=" + expiresAt.getEpochSecond();
-        String payloadPart = Base64.getUrlEncoder()
-                .withoutPadding()
-                .encodeToString(payload.getBytes(StandardCharsets.UTF_8));
-        String signaturePart = Base64.getUrlEncoder()
-                .withoutPadding()
-                .encodeToString(sign(payload));
-        return payloadPart + "." + signaturePart;
+        Instant issuedAt = clock.instant();
+        return JWT.create()
+                .withIssuer(requireConfiguredIssuer())
+                .withAudience(requireConfiguredAudience())
+                .withSubject(appUserId.toString())
+                .withIssuedAt(Date.from(issuedAt))
+                .withExpiresAt(Date.from(expiresAt))
+                .sign(algorithm());
     }
 
     public VerifiedUpstreamRequest verify(String token) {
-        requireConfiguredSharedSecret();
         if (!StringUtils.hasText(token)) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing upstream authorization token.");
         }
 
-        String[] parts = token.split("\\.");
-        if (parts.length != 2) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Upstream authorization token is invalid.");
+        DecodedJWT decodedJwt;
+        try {
+            decodedJwt = verifier().verify(token);
+        }
+        catch (JWTVerificationException ex) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Upstream authorization token is invalid.", ex);
         }
 
-        byte[] payloadBytes = decodeBase64Url(parts[0]);
-        byte[] signatureBytes = decodeBase64Url(parts[1]);
-        if (!MessageDigest.isEqual(sign(payloadBytes), signatureBytes)) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Upstream authorization token signature is invalid.");
-        }
-
-        Map<String, String> claims = parseClaims(new String(payloadBytes, StandardCharsets.UTF_8));
-        UUID appUserId = parseAppUserId(claims.get("sub"));
-        Instant expiresAt = parseExpiry(claims.get("exp"));
+        UUID appUserId = parseAppUserId(decodedJwt.getSubject());
+        Instant expiresAt = requireTimestamp(decodedJwt.getExpiresAt(), "expiry");
+        Instant issuedAt = requireTimestamp(decodedJwt.getIssuedAt(), "issued-at time");
         Instant now = clock.instant();
+
+        if (issuedAt.isAfter(now.plus(upstreamAuthProperties.getClockSkew()))) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Upstream authorization token issued-at time is invalid.");
+        }
+
         if (expiresAt.plus(upstreamAuthProperties.getClockSkew()).isBefore(now)) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Upstream authorization token has expired.");
         }
@@ -83,52 +72,56 @@ public class UpstreamRequestTokenService {
         return new VerifiedUpstreamRequest(appUserId, expiresAt);
     }
 
-    private void requireConfiguredSharedSecret() {
+    private Algorithm algorithm() {
+        return Algorithm.HMAC256(requireConfiguredSharedSecret());
+    }
+
+    private JWTVerifier verifier() {
+        JWTVerifier.BaseVerification verification = (JWTVerifier.BaseVerification) JWT.require(algorithm())
+                .withIssuer(requireConfiguredIssuer())
+                .withAudience(requireConfiguredAudience())
+                .withClaimPresence("sub")
+                .withClaimPresence("iat")
+                .withClaimPresence("exp")
+                .acceptLeeway(upstreamAuthProperties.getClockSkew().getSeconds());
+        return verification.build(clock);
+    }
+
+    private String requireConfiguredSharedSecret() {
         if (!StringUtils.hasText(upstreamAuthProperties.getSharedSecret())) {
             throw new ResponseStatusException(
                     HttpStatus.INTERNAL_SERVER_ERROR,
                     "SOTD_UPSTREAM_AUTH_SHARED_SECRET is not configured."
             );
         }
+        return upstreamAuthProperties.getSharedSecret();
     }
 
-    private byte[] sign(String payload) {
-        return sign(payload.getBytes(StandardCharsets.UTF_8));
-    }
-
-    private byte[] sign(byte[] payloadBytes) {
-        try {
-            Mac mac = Mac.getInstance(HMAC_ALGORITHM);
-            SecretKeySpec secretKeySpec = new SecretKeySpec(
-                    upstreamAuthProperties.getSharedSecret().getBytes(StandardCharsets.UTF_8),
-                    HMAC_ALGORITHM
+    private String requireConfiguredIssuer() {
+        if (!StringUtils.hasText(upstreamAuthProperties.getIssuer())) {
+            throw new ResponseStatusException(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "SOTD_UPSTREAM_AUTH_ISSUER is not configured."
             );
-            mac.init(secretKeySpec);
-            return mac.doFinal(payloadBytes);
         }
-        catch (GeneralSecurityException ex) {
-            throw new IllegalStateException("Failed to sign upstream authorization token.", ex);
-        }
+        return upstreamAuthProperties.getIssuer();
     }
 
-    private static byte[] decodeBase64Url(String value) {
-        try {
-            return Base64.getUrlDecoder().decode(value);
+    private String requireConfiguredAudience() {
+        if (!StringUtils.hasText(upstreamAuthProperties.getAudience())) {
+            throw new ResponseStatusException(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "SOTD_UPSTREAM_AUTH_AUDIENCE is not configured."
+            );
         }
-        catch (IllegalArgumentException ex) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Upstream authorization token is invalid.");
-        }
+        return upstreamAuthProperties.getAudience();
     }
 
-    private static Map<String, String> parseClaims(String payload) {
-        Map<String, String> claims = new LinkedHashMap<>();
-        for (String pair : payload.split("&")) {
-            String[] parts = pair.split("=", 2);
-            if (parts.length == 2) {
-                claims.put(parts[0], parts[1]);
-            }
+    private static Instant requireTimestamp(Date value, String label) {
+        if (value == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Upstream authorization token is missing an " + label + ".");
         }
-        return claims;
+        return value.toInstant();
     }
 
     private static UUID parseAppUserId(String value) {
@@ -140,18 +133,6 @@ public class UpstreamRequestTokenService {
         }
         catch (IllegalArgumentException ex) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Upstream authorization token subject is invalid.");
-        }
-    }
-
-    private static Instant parseExpiry(String value) {
-        if (!StringUtils.hasText(value)) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Upstream authorization token is missing an expiry.");
-        }
-        try {
-            return Instant.ofEpochSecond(Long.parseLong(value));
-        }
-        catch (NumberFormatException ex) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Upstream authorization token expiry is invalid.");
         }
     }
 

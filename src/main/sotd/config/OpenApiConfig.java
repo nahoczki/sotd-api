@@ -30,10 +30,10 @@ public class OpenApiConfig {
                         .addSecuritySchemes(
                                 UPSTREAM_HEADER_AUTH_SCHEME,
                                 new SecurityScheme()
-                                        .type(SecurityScheme.Type.APIKEY)
-                                        .in(SecurityScheme.In.HEADER)
-                                        .name("X-SOTD-UPSTREAM-AUTH")
-                                        .description("Short-lived upstream-issued token for server-to-server user-scoped requests.")
+                                        .type(SecurityScheme.Type.HTTP)
+                                        .scheme("bearer")
+                                        .bearerFormat("JWT")
+                                        .description("Short-lived upstream-issued JWT for server-to-server user-scoped requests.")
                         )
                         .addSecuritySchemes(
                                 UPSTREAM_QUERY_AUTH_SCHEME,
@@ -41,9 +41,10 @@ public class OpenApiConfig {
                                         .type(SecurityScheme.Type.APIKEY)
                                         .in(SecurityScheme.In.QUERY)
                                         .name("upstreamAuth")
-                                        .description("Short-lived upstream-issued token for browser redirects into the Spotify connect flow.")
+                                        .description("Short-lived upstream-issued JWT for browser redirects into the Spotify connect flow.")
                         ))
                 .addTagsItem(new Tag().name("song-of-the-day").description("User-scoped winner reads for profile pages."))
+                .addTagsItem(new Tag().name("our-song").description("Pairwise shared-song reads for two profile pages."))
                 .addTagsItem(new Tag().name("spotify-auth").description("Spotify account linking and linked-account inspection."));
     }
 }

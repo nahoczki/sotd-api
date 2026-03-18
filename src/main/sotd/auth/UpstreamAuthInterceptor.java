@@ -55,9 +55,27 @@ public class UpstreamAuthInterceptor implements HandlerInterceptor {
     private String resolveToken(jakarta.servlet.http.HttpServletRequest request) {
         String headerToken = request.getHeader(upstreamAuthProperties.getHeaderName());
         if (StringUtils.hasText(headerToken)) {
-            return headerToken;
+            return extractBearerToken(headerToken);
         }
-        return request.getParameter(upstreamAuthProperties.getQueryParameterName());
+        if (isBrowserConnectRequest(request)) {
+            return request.getParameter(upstreamAuthProperties.getQueryParameterName());
+        }
+        return null;
+    }
+
+    private boolean isBrowserConnectRequest(jakarta.servlet.http.HttpServletRequest request) {
+        return request.getRequestURI() != null
+                && request.getRequestURI().endsWith("/spotify/connect");
+    }
+
+    private static String extractBearerToken(String headerValue) {
+        if (!StringUtils.hasText(headerValue)) {
+            return null;
+        }
+        if (headerValue.regionMatches(true, 0, "Bearer ", 0, 7)) {
+            return headerValue.substring(7).trim();
+        }
+        return headerValue;
     }
 
     private static UUID parsePathUserId(String value) {

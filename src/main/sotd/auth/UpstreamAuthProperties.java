@@ -8,9 +8,11 @@ public class UpstreamAuthProperties {
 
     private boolean enabled = true;
     private String sharedSecret;
+    private String issuer;
+    private String audience;
     private Duration clockSkew = Duration.ofSeconds(30);
     private String queryParameterName = "upstreamAuth";
-    private String headerName = "X-SOTD-UPSTREAM-AUTH";
+    private String headerName = "Authorization";
 
     public boolean isEnabled() {
         return enabled;
@@ -26,6 +28,22 @@ public class UpstreamAuthProperties {
 
     public void setSharedSecret(String sharedSecret) {
         this.sharedSecret = sharedSecret;
+    }
+
+    public String getIssuer() {
+        return issuer;
+    }
+
+    public void setIssuer(String issuer) {
+        this.issuer = issuer;
+    }
+
+    public String getAudience() {
+        return audience;
+    }
+
+    public void setAudience(String audience) {
+        this.audience = audience;
     }
 
     public Duration getClockSkew() {

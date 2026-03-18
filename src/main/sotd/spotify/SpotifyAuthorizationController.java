@@ -38,7 +38,7 @@ public class SpotifyAuthorizationController {
                     @Parameter(
                             name = "upstreamAuth",
                             in = ParameterIn.QUERY,
-                            description = "Short-lived upstream-issued token whose subject must match the path UUID.",
+                            description = "Short-lived upstream-issued JWT whose subject must match the path UUID.",
                             required = true
                     )
             }

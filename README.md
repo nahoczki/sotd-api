@@ -81,6 +81,14 @@ Local DB defaults:
 .\gradlew.bat bootRun
 ```
 
+For local endpoint testing without the upstream backend, use the `local` profile alias:
+
+```powershell
+.\gradlew.bat bootRun --args="--spring.profiles.active=local"
+```
+
+`local` activates the `dev` profile under the hood and disables upstream JWT enforcement so you can test the user-scoped routes directly. In IntelliJ's Active profiles field, you can now just enter `local`.
+
 On startup, Flyway will apply the initial schema migration automatically.
 
 ### Run tests
@@ -125,6 +133,15 @@ User-scoped routes are protected by a signed upstream auth token. The upstream b
 - mint a short-lived JWT for a specific `app_user_id`
 - send it in the `Authorization: Bearer {jwt}` header for server-to-server reads
 - append it as the `upstreamAuth` query parameter for browser redirects to `/spotify/connect`
+
+For local development, the tracked `dev` profile disables that upstream JWT requirement so you can test the API without a second backend process. Use manual JWT generation only when you want to test the real auth contract locally.
+
+Useful operational endpoints:
+
+- `GET /actuator/health`
+- `GET /actuator/info`
+- `GET /docs`
+- `GET /openapi`
 
 ## Deployment Note
 

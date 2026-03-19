@@ -56,6 +56,7 @@ class SpotifyPlaybackPollingServiceTest {
                 apiClient,
                 ingestionService,
                 rollupRepository,
+                mock(SpotifyOperationalMetrics.class),
                 Clock.fixed(Instant.parse("2026-03-18T00:00:00Z"), ZoneOffset.UTC)
         );
 
@@ -100,6 +101,7 @@ class SpotifyPlaybackPollingServiceTest {
                 apiClient,
                 ingestionService,
                 mock(SongRollupRepository.class),
+                mock(SpotifyOperationalMetrics.class),
                 Clock.fixed(Instant.parse("2026-03-18T00:00:00Z"), ZoneOffset.UTC)
         );
 
@@ -132,6 +134,7 @@ class SpotifyPlaybackPollingServiceTest {
                 apiClient,
                 ingestionService,
                 mock(SongRollupRepository.class),
+                mock(SpotifyOperationalMetrics.class),
                 Clock.fixed(Instant.parse("2026-03-18T00:00:00Z"), ZoneOffset.UTC)
         );
 

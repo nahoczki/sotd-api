@@ -19,7 +19,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
-import org.springframework.web.server.ResponseStatusException;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.client.HttpServerErrorException;
 import sotd.crypto.CryptoProperties;
 import sotd.crypto.TokenEncryptionService;
 import sotd.spotify.client.SpotifyAccountsClient;
@@ -46,6 +47,7 @@ class SpotifyAuthorizationServiceTest {
                 encryptionService(),
                 mock(SpotifyAccountRepository.class),
                 mock(SpotifyAccessTokenService.class),
+                mock(SpotifyOperationalMetrics.class),
                 clock
         );
 
@@ -87,6 +89,7 @@ class SpotifyAuthorizationServiceTest {
                 encryptionService(),
                 repository,
                 mock(SpotifyAccessTokenService.class),
+                mock(SpotifyOperationalMetrics.class),
                 clock
         );
 
@@ -126,12 +129,80 @@ class SpotifyAuthorizationServiceTest {
                 encryptionService(),
                 mock(SpotifyAccountRepository.class),
                 mock(SpotifyAccessTokenService.class),
+                mock(SpotifyOperationalMetrics.class),
                 clock
         );
 
         assertThatThrownBy(() -> service.handleCallback("code-123", "bad-state", null))
-                .isInstanceOf(ResponseStatusException.class)
-                .hasMessageContaining("state is invalid or expired");
+                .isInstanceOf(SpotifyCallbackException.class)
+                .satisfies(ex -> {
+                    SpotifyCallbackException callbackException = (SpotifyCallbackException) ex;
+                    assertThat(callbackException.getStage()).isEqualTo(SpotifyCallbackStage.STATE_VALIDATION);
+                    assertThat(callbackException.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
+                });
+    }
+
+    @Test
+    void handleCallbackReturnsAuthorizationDeniedWhenSpotifyReturnsError() {
+        Clock clock = Clock.fixed(Instant.parse("2026-03-17T20:00:00Z"), ZoneOffset.UTC);
+        SpotifyProperties properties = configuredProperties();
+        SpotifyAuthStateStore stateStore = mock(SpotifyAuthStateStore.class);
+        UUID appUserId = UUID.fromString("11111111-1111-1111-1111-111111111111");
+        when(stateStore.consume("state-123")).thenReturn(Optional.of(appUserId));
+
+        SpotifyAuthorizationService service = new SpotifyAuthorizationService(
+                properties,
+                stateStore,
+                mock(SpotifyAccountsClient.class),
+                mock(SpotifyApiClient.class),
+                encryptionService(),
+                mock(SpotifyAccountRepository.class),
+                mock(SpotifyAccessTokenService.class),
+                mock(SpotifyOperationalMetrics.class),
+                clock
+        );
+
+        assertThatThrownBy(() -> service.handleCallback(null, "state-123", "access_denied"))
+                .isInstanceOf(SpotifyCallbackException.class)
+                .satisfies(ex -> {
+                    SpotifyCallbackException callbackException = (SpotifyCallbackException) ex;
+                    assertThat(callbackException.getStage()).isEqualTo(SpotifyCallbackStage.AUTHORIZATION_DENIED);
+                    assertThat(callbackException.getAppUserId()).isEqualTo(appUserId);
+                });
+    }
+
+    @Test
+    void handleCallbackSurfacesTokenExchangeFailureAsStructuredCallbackError() {
+        Clock clock = Clock.fixed(Instant.parse("2026-03-17T20:00:00Z"), ZoneOffset.UTC);
+        SpotifyProperties properties = configuredProperties();
+        SpotifyAuthStateStore stateStore = mock(SpotifyAuthStateStore.class);
+        UUID appUserId = UUID.fromString("11111111-1111-1111-1111-111111111111");
+        when(stateStore.consume("state-123")).thenReturn(Optional.of(appUserId));
+
+        SpotifyAccountsClient accountsClient = mock(SpotifyAccountsClient.class);
+        when(accountsClient.exchangeAuthorizationCode(anyString(), anyString(), anyString(), any(URI.class)))
+                .thenThrow(HttpServerErrorException.create(HttpStatus.BAD_GATEWAY, "bad gateway", null, null, null));
+
+        SpotifyAuthorizationService service = new SpotifyAuthorizationService(
+                properties,
+                stateStore,
+                accountsClient,
+                mock(SpotifyApiClient.class),
+                encryptionService(),
+                mock(SpotifyAccountRepository.class),
+                mock(SpotifyAccessTokenService.class),
+                mock(SpotifyOperationalMetrics.class),
+                clock
+        );
+
+        assertThatThrownBy(() -> service.handleCallback("code-123", "state-123", null))
+                .isInstanceOf(SpotifyCallbackException.class)
+                .satisfies(ex -> {
+                    SpotifyCallbackException callbackException = (SpotifyCallbackException) ex;
+                    assertThat(callbackException.getStage()).isEqualTo(SpotifyCallbackStage.TOKEN_EXCHANGE);
+                    assertThat(callbackException.getStatus()).isEqualTo(HttpStatus.BAD_GATEWAY);
+                    assertThat(callbackException.getAppUserId()).isEqualTo(appUserId);
+                });
     }
 
     @Test
@@ -151,6 +222,7 @@ class SpotifyAuthorizationServiceTest {
                 encryptionService(),
                 repository,
                 accessTokenService,
+                mock(SpotifyOperationalMetrics.class),
                 clock
         );
 

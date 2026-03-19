@@ -18,11 +18,13 @@ Implemented now:
 - period-based top-song reads built from daily rollups
 - pairwise shared-song reads built from daily rollups
 - user-scoped read endpoints under `/api/users/{appUserId}/...`
+- custom Micrometer metrics for callback, token refresh, polling, and account-state health
 
 Not implemented yet:
 
 - frontend callback redirect flow
-- deployment-grade shared OAuth state storage
+- multi-replica poller coordination
+- historical date selection beyond current active periods
 
 ## Stack
 
@@ -100,13 +102,16 @@ On startup, Flyway will apply the initial schema migration automatically.
 ### Build container image
 
 ```powershell
-docker build -t sotd-api:local .
+$gitCommit = git rev-parse HEAD
+$gitBranch = git rev-parse --abbrev-ref HEAD
+$imageTag = "sotd-api:local"
+docker build --build-arg GIT_COMMIT=$gitCommit --build-arg GIT_BRANCH=$gitBranch --build-arg IMAGE_TAG=$imageTag -t $imageTag .
 ```
 
 Run it with environment variables supplied by your platform or an env file:
 
 ```powershell
-docker run --rm -p 8080:8080 --env-file .env sotd-api:local
+docker run --rm -p 8080:8080 --env-file .env -e SPRING_PROFILES_ACTIVE=prod sotd-api:local
 ```
 
 ### Current API shape
@@ -122,7 +127,6 @@ Key routes:
 - `GET /api/users/{appUserId}/spotify/connection`
 - `DELETE /api/users/{appUserId}/spotify/connection`
 - `GET /api/users/{appUserId}/top-song?period=DAY|WEEK|MONTH|YEAR`
-- `GET /api/users/{appUserId}/song-of-the-day` as a compatibility alias for `period=DAY`
 - `GET /api/users/{appUserId}/our-song?otherUserId={otherUserId}&period=DAY|WEEK|MONTH|YEAR`
 
 The backend does not create users locally. It expects `{appUserId}` to come from your upstream account system.
@@ -137,12 +141,54 @@ User-scoped routes are protected by a signed upstream auth token. The upstream b
 
 For local development, the tracked `dev` profile disables that upstream JWT requirement so you can test the API without a second backend process. Use manual JWT generation only when you want to test the real auth contract locally.
 
+The Spotify callback now returns a structured JSON error body on failure with:
+
+- `errorCode`
+- `stage`
+- `message`
+- `appUserId` when the callback state was already validated
+
 Useful operational endpoints:
 
 - `GET /actuator/health`
 - `GET /actuator/info`
+- `GET /actuator/metrics`
 - `GET /docs`
 - `GET /openapi`
+
+Custom metrics are now emitted into the Micrometer registry for:
+
+- `sotd.spotify.callback.outcomes`
+- `sotd.spotify.callback.duration`
+- `sotd.spotify.token_refresh.outcomes`
+- `sotd.spotify.token_refresh.duration`
+- `sotd.spotify.poll.account.outcomes`
+- `sotd.spotify.poll.account.duration`
+- `sotd.spotify.poll.inserted_events`
+- `sotd.spotify.accounts`
+- `sotd.spotify.poll.active_without_successful_poll`
+- `sotd.spotify.poll.oldest_success_age.seconds`
+
+All metrics include the common tag `application=${spring.application.name}`. `/actuator/metrics` is exposed now for internal operational use and should stay off the public internet-facing edge. Prometheus scraping is still a separate deployment decision.
+
+`/actuator/info` now includes build and git metadata when the artifact is built with generated metadata. Useful fields include:
+
+- `build.version`
+- `build.time`
+- `build.imageTag` when `INFO_IMAGE_TAG` or `IMAGE_TAG` is supplied at build/runtime
+- `git.branch`
+- `git.commitSha`
+- `git.commitShortSha`
+
+Production profile note:
+
+- use `staging` for deployed pre-prod runtime defaults
+- use `prod` for production runtime defaults
+- `staging` automatically activates `container`, so structured JSON console logging remains enabled
+- `staging` enables strict startup validation and trusted forwarded-header handling for realistic pre-prod testing
+- `prod` automatically activates `container`, so structured JSON console logging remains enabled
+- `prod` also enables strict startup validation for required Spotify, crypto, redirect, and upstream JWT settings
+- `prod` defaults `server.forward-headers-strategy` to `framework` so trusted proxy headers are honored
 
 ## Deployment Note
 
@@ -153,6 +199,7 @@ Important OAuth caveat:
 - the Spotify connect flow and `/api/spotify/callback` still need a browser-visible route that Spotify can redirect to
 - that can be a direct ingress to this service or a path proxied through your main app/backend
 - the service does not need to be generally public as a separate internet-facing API if your upstream app is handling the external edge
+- if you proxy through an ingress or upstream backend, forward standard `Forwarded` or `X-Forwarded-*` headers consistently
 
 ## Database
 
@@ -184,7 +231,6 @@ Local connect flow:
 - inspect the linked account with `Authorization: Bearer {token}` at `http://127.0.0.1:8080/api/users/{appUserId}/spotify/connection`
 - unlink the Spotify account with `Authorization: Bearer {token}` at `DELETE http://127.0.0.1:8080/api/users/{appUserId}/spotify/connection`
 - read the top song with `Authorization: Bearer {token}` at `http://127.0.0.1:8080/api/users/{appUserId}/top-song?period=DAY`
-- the older daily alias still works at `http://127.0.0.1:8080/api/users/{appUserId}/song-of-the-day`
 - read the shared song with `Authorization: Bearer {token}` at `http://127.0.0.1:8080/api/users/{appUserId}/our-song?otherUserId={otherUserId}&period=DAY`
 
 If you linked accounts before the `app_user_id` migration, re-run the connect flow through the user-scoped URL so the existing `spotify_account` row is attached to the correct UUID.
@@ -193,6 +239,5 @@ If you linked accounts before the `app_user_id` migration, re-run the connect fl
 
 1. Finalize the token-minting contract on the upstream backend that will call this service.
 2. Decide whether pairwise reads should support explicit date selection in addition to current-period reads.
-3. Replace in-memory OAuth state with a shared store for multi-instance deployment.
+3. Add cross-pod poller coordination before scaling beyond one replica.
 4. Add operational dashboards around polling success, lag, and reauthorization status.
-5. Decide whether the legacy `/song-of-the-day` alias should stay long-term or be retired after frontend adoption of `/top-song`.

@@ -5,12 +5,18 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import sotd.auth.UpstreamAuthProperties;
+import sotd.config.StartupValidationProperties;
 import sotd.crypto.CryptoProperties;
 import sotd.spotify.SpotifyProperties;
 
 @EnableScheduling
 @SpringBootApplication
-@EnableConfigurationProperties({SpotifyProperties.class, CryptoProperties.class, UpstreamAuthProperties.class})
+@EnableConfigurationProperties({
+        SpotifyProperties.class,
+        CryptoProperties.class,
+        UpstreamAuthProperties.class,
+        StartupValidationProperties.class
+})
 /**
  * Entry point for the SOTD API.
  *

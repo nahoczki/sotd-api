@@ -59,11 +59,13 @@ public class SpotifyAuthorizationController {
     @GetMapping("/api/spotify/callback")
     @Operation(
             summary = "Spotify OAuth callback",
-            description = "Spotify redirects here after consent. This route exchanges the code and stores the encrypted refresh token."
+            description = "Spotify redirects here after consent. This route exchanges the code and stores the encrypted refresh token. Failures return a structured JSON error body with an error code and callback stage."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Spotify account linked successfully."),
-            @ApiResponse(responseCode = "400", description = "Spotify callback failed or state was invalid.")
+            @ApiResponse(responseCode = "400", description = "Spotify callback input was invalid, state validation failed, or the user denied authorization."),
+            @ApiResponse(responseCode = "500", description = "The callback could not be completed because local persistence or configuration failed."),
+            @ApiResponse(responseCode = "502", description = "Spotify token exchange or profile lookup failed.")
     })
     public SpotifyConnectionResponse callback(
             @RequestParam(required = false) String code,

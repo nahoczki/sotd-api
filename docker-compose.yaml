@@ -1,0 +1,40 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: sotd-postgres
+    restart: always
+    environment:
+      POSTGRES_DB: sotd
+      POSTGRES_USER: sotd
+      POSTGRES_PASSWORD: sotd
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sotd"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    container_name: sotd-app
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      SOTD_DATABASE_URL: jdbc:postgresql://postgres:5432/sotd
+      SOTD_DATABASE_USERNAME: sotd
+      SOTD_DATABASE_PASSWORD: sotd
+      SPRING_PROFILES_ACTIVE: container
+    ports:
+      - "8080:8080"
+
+volumes:
+  postgres_data:
